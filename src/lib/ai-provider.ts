@@ -1,4 +1,5 @@
 // Server-only AI provider — Gemini-only cascade.
+// Version: 2026-04-28-17:35-RobustFallback
 //
 // Model order (all confirmed valid as of April 2026 via ai.google.dev/gemini-api/docs/models):
 //   1. gemini-2.5-flash       — stable, best price-performance
