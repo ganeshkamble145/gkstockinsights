@@ -9,25 +9,28 @@ export interface MarketStatusInfo {
   istLabel: string;
 }
 
-/** Compute IST date/time from current UTC. */
-function getIstParts(now: Date) {
-  // IST = UTC + 5:30
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const ist = new Date(utcMs + 5.5 * 60 * 60_000);
-  return ist;
-}
-
 export function getMarketStatus(now = new Date()): MarketStatusInfo {
-  const ist = getIstParts(now);
-  const day = ist.getUTCDay(); // since constructed offset, getUTC* reflects IST clock
-  const hour = ist.getUTCHours();
-  const minute = ist.getUTCMinutes();
-  const totalMin = hour * 60 + minute;
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour12: false,
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+  });
+  
+  const parts = fmt.formatToParts(now);
+  const get = (type: string) => parts.find(p => p.type === type)?.value;
+  
+  const h = parseInt(get("hour") || "0", 10);
+  const m = parseInt(get("minute") || "0", 10);
+  const dayName = get("weekday");
+  const totalMin = h * 60 + m;
 
   let status: MarketStatus = "closed";
-  if (day >= 1 && day <= 5) {
+  const isWeekday = !["Sat", "Sun"].includes(dayName || "");
+  if (isWeekday) {
     if (totalMin >= 9 * 60 && totalMin < 9 * 60 + 15) status = "preopen";
-    else if (totalMin >= 9 * 60 + 15 && totalMin <= 15 * 60 + 30) status = "open";
+    else if (totalMin >= 9 * 60 + 15 && totalMin < 15 * 60 + 30) status = "open";
   }
 
   const label =
@@ -37,17 +40,17 @@ export function getMarketStatus(now = new Date()): MarketStatusInfo {
         ? "Pre-open"
         : "Market Closed — LTP";
 
-  const istLabel = ist.toLocaleString("en-IN", {
+  const istLabel = now.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "UTC", // already shifted
+    timeZone: "Asia/Kolkata",
   }) + " IST";
 
-  return { status, label, istNow: ist, istLabel };
+  return { status, label, istNow: now, istLabel };
 }
 
 export function useMarketStatus(refreshMs = 30_000) {
@@ -64,17 +67,15 @@ export function useMarketStatus(refreshMs = 30_000) {
 export function formatIst(d: Date | number | undefined | null): string {
   if (!d) return "—";
   const date = typeof d === "number" ? new Date(d * 1000) : d;
-  const utcMs = date.getTime() + date.getTimezoneOffset() * 60_000;
-  const ist = new Date(utcMs + 5.5 * 60 * 60_000);
   return (
-    ist.toLocaleString("en-IN", {
+    date.toLocaleString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
-      timeZone: "UTC",
+      timeZone: "Asia/Kolkata",
     }) + " IST"
   );
 }

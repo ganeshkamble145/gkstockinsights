@@ -12,15 +12,31 @@
 
 export function checkMarketHours(): boolean {
   try {
-    const now = new Date();
-    const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    const day  = ist.getDay();   // 0 = Sun, 6 = Sat
-    const h    = ist.getHours();
-    const m    = ist.getMinutes();
+    // Robust IST extraction using Intl.DateTimeFormat
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      weekday: "short",
+    });
+    
+    const parts = fmt.formatToParts(new Date());
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value;
+    
+    const h = parseInt(getPart("hour") || "0", 10);
+    const m = parseInt(getPart("minute") || "0", 10);
+    const dayName = getPart("weekday"); // Mon, Tue...
+    
     const time = h * 60 + m;
-    const isWeekday    = day >= 1 && day <= 5;
-    const marketOpen   = 9 * 60 + 15;   // 09:15
-    const marketClose  = 15 * 60 + 30;  // 15:30
+    const isWeekday = !["Sat", "Sun"].includes(dayName || "");
+    const marketOpen = 9 * 60 + 15;   // 09:15
+    const marketClose = 15 * 60 + 30;  // 15:30
+    
     return isWeekday && time >= marketOpen && time < marketClose;
   } catch {
     return false;
@@ -29,11 +45,23 @@ export function checkMarketHours(): boolean {
 
 export function isPreOpen(): boolean {
   try {
-    const now = new Date();
-    const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    const day  = ist.getDay();
-    const time = ist.getHours() * 60 + ist.getMinutes();
-    return day >= 1 && day <= 5 && time >= 9 * 60 && time < 9 * 60 + 15;
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+    });
+    const parts = fmt.formatToParts(new Date());
+    const get = (type: string) => parts.find(p => p.type === type)?.value;
+    
+    const h = parseInt(get("hour") || "0", 10);
+    const m = parseInt(get("minute") || "0", 10);
+    const dayName = get("weekday");
+    const totalMin = h * 60 + m;
+    
+    const isWeekday = !["Sat", "Sun"].includes(dayName || "");
+    return isWeekday && totalMin >= 9 * 60 && totalMin < 9 * 60 + 15;
   } catch {
     return false;
   }
