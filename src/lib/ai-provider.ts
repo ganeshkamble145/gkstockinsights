@@ -26,6 +26,8 @@ export type AIResult = {
 };
 
 // Models in priority order. Each has its own quota bucket at Google's side.
+import { decryptKey } from "./security-utils";
+
 const GEMINI_MODELS = [
   "gemini-2.5-flash",       // primary — stable, best value
   "gemini-2.5-flash-lite",  // fast fallback — lightest 2.5 model, separate quota
@@ -35,23 +37,6 @@ const GEMINI_MODELS = [
 ];
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-// Simple XOR + Base64 decryption for public safety obfuscation
-function decryptKey(enc: string): string {
-  const SECRET = "GK_STOCKS_2026";
-  try {
-    // Universal base64 decode (Buffer in Node, atob in browser)
-    const decoded = typeof Buffer !== 'undefined' 
-      ? Buffer.from(enc, 'base64').toString('utf8')
-      : atob(enc);
-      
-    return decoded.split('').map((char, i) => 
-      String.fromCharCode(char.charCodeAt(0) ^ SECRET.charCodeAt(i % SECRET.length))
-    ).join('');
-  } catch {
-    return "";
-  }
-}
 
 const ENC_KEY = "BgIlMgc2AjJqbgRERmw3Hj4DFws5GwUcR1Z6XRV6PicRdhIUOCxV";
 

@@ -2,18 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Simple XOR + Base64 decryption for public safety obfuscation
-function decrypt(enc: string): string {
-  const SECRET = "GK_STOCKS_2026";
-  try {
-    const decoded = atob(enc);
-    return decoded.split('').map((char, i) => 
-      String.fromCharCode(char.charCodeAt(0) ^ SECRET.charCodeAt(i % SECRET.length))
-    ).join('');
-  } catch {
-    return "";
-  }
-}
+import { decryptKey } from "@/lib/security-utils";
 
 const ENC_URL = "Lz8rIyd1bGQ/KEdBVEYpPzYlITw1ISAsQF1YTmk4KiM1LSI4NnFRXw==";
 const ENC_KEY = "IjIVOzYIICIcNnh5Z0wOehE6HTwKJQFqUXN7AA4gLwsCDAlyfTpLekJVdAY2HD0FOS8LHVppX3A9EQwaJwYtAT8FW3kEfyozbDcMCS4oFGoCUWpsdihsCSUscAUqPWVABn8uPDYwOXYwEQAWBHlfcDIpbWc9AwABIwZqYVt5LQ5sHS4WdwU5Bkp+dmc0AjIFYCwAAmUSWHEHey0abx4+CnMFG28cUlZeFjwYNQYlGwo2akAGZVwgIDsqYwoxETk2bV0FUHIINgI8diI/ODV1aQ==";
@@ -26,10 +15,10 @@ function createSupabaseClient() {
 
   // If no env var found, use the obfuscated key
   if (!SUPABASE_URL || SUPABASE_URL.length < 10) {
-    SUPABASE_URL = decrypt(ENC_URL);
+    SUPABASE_URL = decryptKey(ENC_URL);
   }
   if (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.length < 10) {
-    SUPABASE_PUBLISHABLE_KEY = decrypt(ENC_KEY);
+    SUPABASE_PUBLISHABLE_KEY = decryptKey(ENC_KEY);
   }
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
