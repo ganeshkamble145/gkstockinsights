@@ -36,14 +36,34 @@ const GEMINI_MODELS = [
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// Simple XOR + Base64 decryption for public safety obfuscation
+function decryptKey(enc: string): string {
+  const SECRET = "GK_STOCKS_2026";
+  try {
+    const decoded = atob(enc);
+    return decoded.split('').map((char, i) => 
+      String.fromCharCode(char.charCodeAt(0) ^ SECRET.charCodeAt(i % SECRET.length))
+    ).join('');
+  } catch {
+    return "";
+  }
+}
+
+const ENC_KEY = "BgIlMgc2AjJqbgRERmw3Hj4DFws5GwUcR1Z6XRV6PicRdhIUOCxV";
+
 async function callGemini(
   messages: AIChatMessage[],
   model: string,
 ): Promise<AIResult> {
-  const apiKey =
+  let apiKey =
     process.env.USER_GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY_TIER3 ||
     process.env.GEMINI_API_KEY_FREE;
+
+  // If no env var found (production/public), use the obfuscated key
+  if (!apiKey || apiKey.length < 10) {
+    apiKey = decryptKey(ENC_KEY);
+  }
 
   if (!apiKey) {
     return { content: null, provider: null, model: null, error: "no-key" };
