@@ -58,16 +58,9 @@ const ENC_KEY = "BgIlMgc2AjJqbgRERmw3Hj4DFws5GwUcR1Z6XRV6PicRdhIUOCxV";
 async function callGemini(
   messages: AIChatMessage[],
   model: string,
+  keyOverride?: string,
 ): Promise<AIResult> {
-  let apiKey =
-    process.env.USER_GEMINI_API_KEY ||
-    process.env.GEMINI_API_KEY_TIER3 ||
-    process.env.GEMINI_API_KEY_FREE;
-
-  // If no env var found (production/public), use the obfuscated key
-  if (!apiKey || apiKey.length < 10) {
-    apiKey = decryptKey(ENC_KEY);
-  }
+  const apiKey = keyOverride || decryptKey(ENC_KEY);
 
   if (!apiKey) {
     return { content: null, provider: null, model: null, error: "no-key" };
@@ -156,22 +149,31 @@ export async function callAIWithFallback(
   messages: AIChatMessage[],
 ): Promise<AIResult> {
   const errors: string[] = [];
-
+  
+  // Pass 1: Try with Environment Keys (User's preferred)
+  const envKey = process.env.USER_GEMINI_API_KEY || process.env.GEMINI_API_KEY_TIER3 || process.env.GEMINI_API_KEY_FREE;
+  
   for (let i = 0; i < GEMINI_MODELS.length; i++) {
-    // Wait 5 seconds between attempts so per-minute quota partially recovers.
     if (i > 0) await sleep(5000);
-
     const model = GEMINI_MODELS[i];
-    const result = await callGemini(messages, model);
+    const result = await callGemini(messages, model, envKey);
 
-    if (result.content && !result.error) {
-      return result;
-    }
+    if (result.content && !result.error) return result;
+    errors.push(`[EnvKey] ${model}: ${result.error ?? "unknown"}`);
+  }
 
-    errors.push(`${model}: ${result.error ?? "unknown"}`);
+  // Pass 2: Fallback to Obfuscated Key if Pass 1 failed (especially if it was an "expired" error)
+  const safetyKey = decryptKey(ENC_KEY);
+  if (safetyKey && safetyKey !== envKey) {
+    console.log("⚠️ Env keys failed. Falling back to internal safety key...");
+    for (let i = 0; i < GEMINI_MODELS.length; i++) {
+      // Shorter sleep for second pass to recover faster
+      if (i > 0) await sleep(2000);
+      const model = GEMINI_MODELS[i];
+      const result = await callGemini(messages, model, safetyKey);
 
-    if (!shouldFallback(result.error)) {
-      // Non-retriable hard error — still try next model for resilience
+      if (result.content && !result.error) return result;
+      errors.push(`[SafetyKey] ${model}: ${result.error ?? "unknown"}`);
     }
   }
 
