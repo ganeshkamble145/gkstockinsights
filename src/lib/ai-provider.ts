@@ -40,7 +40,11 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 function decryptKey(enc: string): string {
   const SECRET = "GK_STOCKS_2026";
   try {
-    const decoded = atob(enc);
+    // Universal base64 decode (Buffer in Node, atob in browser)
+    const decoded = typeof Buffer !== 'undefined' 
+      ? Buffer.from(enc, 'base64').toString('utf8')
+      : atob(enc);
+      
     return decoded.split('').map((char, i) => 
       String.fromCharCode(char.charCodeAt(0) ^ SECRET.charCodeAt(i % SECRET.length))
     ).join('');
