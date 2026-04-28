@@ -44,14 +44,14 @@ export function isPreOpen(): boolean {
 export const CACHE_TTL = {
   live_price:         60,      // 1 min during market hours
   market_pulse:       60,
-  fo_scan:            300,     // 5 min
+  fo_scan:            3600,    // 1 h (increased to save quota)
   morning_brief:      21_600,  // 6 h
-  news_headlines:     900,     // 15 min
-  nifty100_prices:    180,     // 3 min
-  penny_scanner:      300,     // 5 min
+  news_headlines:     1800,    // 30 min
+  nifty100_prices:    300,     // 5 min
+  penny_scanner:      3600,    // 1 h (increased to save quota)
   fundamental_report: 86_400,  // 24 h
   peer_comparison:    86_400,
-  after_market_close: 21_600,  // 6 h (outside trading hrs)
+  after_market_close: 43_200,  // 12 h (outside trading hrs)
   yahoo_quote:        60,      // 1 min live / 6 h closed
 } as const;
 

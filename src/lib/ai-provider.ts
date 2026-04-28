@@ -140,25 +140,38 @@ export async function callAIWithFallback(
   const envKey = process.env.USER_GEMINI_API_KEY || process.env.GEMINI_API_KEY_TIER3 || process.env.GEMINI_API_KEY_FREE;
   
   for (let i = 0; i < GEMINI_MODELS.length; i++) {
-    if (i > 0) await sleep(5000);
     const model = GEMINI_MODELS[i];
     const result = await callGemini(messages, model, envKey);
 
     if (result.content && !result.error) return result;
+    
+    // If we hit 429, wait significantly longer (15s) to let the window reset
+    if (result.error?.includes("429")) {
+      console.warn(`[EnvKey] Rate limited on ${model}. Waiting 15s...`);
+      await sleep(15000);
+    } else {
+      if (i < GEMINI_MODELS.length - 1) await sleep(5000);
+    }
+    
     errors.push(`[EnvKey] ${model}: ${result.error ?? "unknown"}`);
   }
 
-  // Pass 2: Fallback to Obfuscated Key if Pass 1 failed (especially if it was an "expired" error)
+  // Pass 2: Fallback to Obfuscated Key
   const safetyKey = decryptKey(ENC_KEY);
-  if (safetyKey && safetyKey !== envKey) {
-    console.log("⚠️ Env keys failed. Falling back to internal safety key...");
+  if (safetyKey) {
+    console.log("⚠️ Pass 1 complete. Attempting Pass 2 (Safety Key)...");
     for (let i = 0; i < GEMINI_MODELS.length; i++) {
-      // Shorter sleep for second pass to recover faster
-      if (i > 0) await sleep(2000);
       const model = GEMINI_MODELS[i];
       const result = await callGemini(messages, model, safetyKey);
 
       if (result.content && !result.error) return result;
+      
+      if (result.error?.includes("429")) {
+        await sleep(10000);
+      } else {
+        if (i < GEMINI_MODELS.length - 1) await sleep(2000);
+      }
+      
       errors.push(`[SafetyKey] ${model}: ${result.error ?? "unknown"}`);
     }
   }
