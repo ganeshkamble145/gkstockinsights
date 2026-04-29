@@ -147,6 +147,7 @@ export interface ScoreInput {
   pe?: number;
   sectorPe?: number;
   marketCapCr?: number;
+  analystTarget?: number;
 }
 
 /**
@@ -163,15 +164,29 @@ export function computeEquityScore(
   const pe = peScore(input.pe, input.sectorPe);
   const rsi = rsiScore(live?.rsi14);
   const mcap = mcapScore(input.marketCapCr);
-  const total =
+  let total =
     momentum * 0.25 +
     volume * 0.2 +
     proximity52w * 0.15 +
     pe * 0.15 +
     rsi * 0.15 +
     mcap * 0.1;
+
+  // Penalize score if current price is above analyst target
+  if (live && input.analystTarget && input.analystTarget > 0) {
+    if (live.price >= input.analystTarget) {
+      // Penalty based on how much it exceeded the target
+      const penalty = Math.min(40, ((live.price - input.analystTarget) / input.analystTarget) * 100);
+      total -= penalty;
+      // Cap at 59 so it's never a BUY if it has exceeded its target
+      if (total >= 60) {
+        total = 59;
+      }
+    }
+  }
+
   return {
-    total: Math.round(total),
+    total: Math.max(0, Math.round(total)),
     momentum: Math.round(momentum),
     volume: Math.round(volume),
     proximity52w: Math.round(proximity52w),

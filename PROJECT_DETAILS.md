@@ -20,6 +20,12 @@ Used in the "Penny Stocks" and "NIFTY 100" tabs to rank undervalued opportunitie
 | **RSI Sweet Spot** | 15% | Uses Wilder's RSI(14). Optimal range is 40–65. Avoids "overbought" (>70) or "dead" (<30). |
 | **Stability (MCap)** | 10% | Logarithmic scale based on Market Cap. Favors established stability over micro-caps. |
 
+### 🎯 1.1b Analyst Target Overvaluation Penalty
+To prevent the AI from issuing contradictory recommendations (e.g., suggesting a "BUY" for a stock whose current market price already exceeds the AI's own analyst target), an automatic penalty is applied:
+- The system calculates the real-time upside/downside percentage using live Yahoo Finance prices against the stated analyst target.
+- If the live price is **greater than or equal to the target** (negative upside), the composite score is penalized based on the degree of overvaluation.
+- **Hard Cap:** The final score is hard-capped at **59 (HOLD)**. This guarantees that overvalued stocks can never be recommended as a BUY or STRONG BUY, regardless of their momentum or volume.
+
 ### 📈 1.2 F&O Scoring Logic
 Used in the "F&O Trading" tab to identify high-probability derivative plays.
 
@@ -100,6 +106,10 @@ Implemented in `perf-utils.ts` to reduce API costs and latency:
 The `useMarketStatus` hook prevents unnecessary API calls:
 - **Polls every 60s** only during 09:15 – 15:30 IST, Monday – Friday.
 - **Auto-Pauses** if the browser tab is hidden (using `visibilitychange` API) to save user data/battery.
+
+### 🧹 3.5 Output Deduplication & UI Legends
+Since LLMs occasionally hallucinate duplicate ticker symbols within a single generated batch, the dashboards implement strict UI-level deduplication (using `Set<string>`) before rendering tables or cards.
+Additionally, all screener pages now dynamically render the true mathematically calculated upside percentage to prevent reliance on hallucinated math from the AI model, and include a clear bottom-page legend explaining the scoring tiers and methodology.
 
 ---
 

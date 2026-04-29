@@ -94,7 +94,17 @@ export function ScreenerDashboard({ kind, onBack }: { kind: Kind; onBack: () => 
   // Compute composite scores for every pick using live data + AI fundamentals.
   const ranked: RankedRow[] = useMemo(() => {
     if (!result) return [];
-    return result.picks
+    
+    // Deduplicate by symbol
+    const seen = new Set<string>();
+    const uniquePicks = result.picks.filter(stock => {
+      const sym = tickerToSymbol(stock.ticker);
+      if (seen.has(sym)) return false;
+      seen.add(sym);
+      return true;
+    });
+
+    return uniquePicks
       .map((stock) => {
         const symbol = tickerToSymbol(stock.ticker);
         const liveState = liveQuotes[symbol];
@@ -102,7 +112,8 @@ export function ScreenerDashboard({ kind, onBack }: { kind: Kind; onBack: () => 
         const pe = parseNumeric(stock.pe);
         const sectorPe = parseNumeric(stock.sectorMedianPe);
         const marketCapCr = parseNumeric(stock.marketCap);
-        const score = computeEquityScore(live, { pe, sectorPe, marketCapCr });
+        const analystTarget = parseNumeric(stock.analystTarget);
+        const score = computeEquityScore(live, { pe, sectorPe, marketCapCr, analystTarget });
         return { stock, symbol, score, liveState };
       })
       .sort((a, b) => b.score.total - a.score.total);
@@ -336,7 +347,37 @@ export function ScreenerDashboard({ kind, onBack }: { kind: Kind; onBack: () => 
           )}
           <PerformanceFooter stats={stats ?? null} fromCache={fromCache} />
 
-          <p className="text-[11px] text-muted-foreground mt-6 leading-relaxed">
+          <div className="mt-8 border-t border-border pt-6">
+            <h4 className="text-sm font-semibold mb-3">Scoring & Recommendation Logic</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs mb-4 text-muted-foreground">
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">⭐ STRONG BUY (80-100)</span>
+                <p className="mt-1">Exceptional composite score. High momentum, strong volume, excellent fundamentals, and significant upside potential.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-emerald-500 dark:text-emerald-300">✅ BUY (60-79)</span>
+                <p className="mt-1">Good composite score indicating a solid entry point. Price has not yet exceeded its analyst target.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-amber-500 dark:text-amber-400">⚠️ HOLD (40-59)</span>
+                <p className="mt-1">Average score or stock has already exceeded its analyst target. Better to wait for a dip before entering.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-orange-500 dark:text-orange-400">🔻 AVOID (20-39)</span>
+                <p className="mt-1">Weak momentum or poor fundamentals. High risk of downside.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-red-500 dark:text-red-400">❌ SELL (0-19)</span>
+                <p className="mt-1">Very poor technicals and fundamentals. Negative catalysts or highly overvalued.</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <strong>Equity Scoring:</strong> Composite scores computed in-browser combining live technicals (5-day momentum, volume vs 3M avg, 52W proximity, RSI) and AI-supplied fundamentals (P/E vs sector, Market Cap).
+              <br/><em>Note: If a stock's current market price exceeds the stated analyst target, the score is penalized and capped at 59 (HOLD) maximum to prevent buying overvalued assets.</em>
+            </p>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground border-t border-border pt-4 mt-6 leading-relaxed">
             Live prices from NSE/BSE via Yahoo Finance. Composite scores computed in-browser from
             live momentum (5-day), volume vs 3M avg, 52W proximity, RSI(14), P/E vs sector, and
             market cap. Fundamental data (P/E, sector P/E, holdings) supplied by AI — verify before
@@ -604,9 +645,21 @@ function StockCard({ row, rank, kind, budget, onRetry }: { row: RankedRow; rank:
             <div className="text-xs">
               <span className="text-muted-foreground">Analyst target: </span>
               <span className="font-medium">{stock.analystTarget}</span>
-              {stock.upsidePct !== undefined && (
-                <span className="text-muted-foreground"> ({stock.upsidePct > 0 ? "+" : ""}{stock.upsidePct}%)</span>
-              )}
+              {(() => {
+                const targetNum = parseNumeric(stock.analystTarget);
+                if (live && targetNum) {
+                  const realUpside = ((targetNum - live.price) / live.price) * 100;
+                  const color = realUpside >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+                  return (
+                    <span className={cn("ml-1 font-medium", color)}>
+                      ({realUpside > 0 ? "+" : ""}{realUpside.toFixed(1)}%)
+                    </span>
+                  );
+                }
+                return stock.upsidePct !== undefined ? (
+                  <span className="text-muted-foreground ml-1">({stock.upsidePct > 0 ? "+" : ""}{stock.upsidePct}%)</span>
+                ) : null;
+              })()}
             </div>
           )}
           {stock.riskReward && (

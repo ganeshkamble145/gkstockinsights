@@ -78,7 +78,16 @@ export function FnoDashboard({ onBack }: { onBack: () => void }) {
 
   const ranked: FnoRanked[] = useMemo(() => {
     if (!result) return [];
-    return result.picks
+    
+    // Deduplicate by symbol
+    const seen = new Set<string>();
+    const uniquePicks = result.picks.filter(stock => {
+      if (seen.has(stock.symbol)) return false;
+      seen.add(stock.symbol);
+      return true;
+    });
+
+    return uniquePicks
       .map((stock) => {
         const liveState = liveQuotes[stock.symbol];
         const live = quoteOf(liveState);
@@ -354,6 +363,35 @@ export function FnoDashboard({ onBack }: { onBack: () => void }) {
           <div className="rounded-xl border border-r-border bg-r-fill p-4 mt-8">
             <div className="text-sm font-semibold text-r-text mb-1">⚠ F&amp;O Risk Warning</div>
             <p className="text-xs text-r-text leading-relaxed">{result.riskWarning}</p>
+          </div>
+
+          <div className="mt-8 border-t border-border pt-6">
+            <h4 className="text-sm font-semibold mb-3">Scoring & Recommendation Logic</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs mb-4 text-muted-foreground">
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">⭐ STRONG BUY (80-100)</span>
+                <p className="mt-1">Exceptional F&amp;O setup. Favorable OI buildup, perfect IV, strong momentum, and high Put-Call Ratio.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-emerald-500 dark:text-emerald-300">✅ BUY (60-79)</span>
+                <p className="mt-1">Solid setup with favorable risk-reward for the suggested strategy.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-amber-500 dark:text-amber-400">⚠️ HOLD (40-59)</span>
+                <p className="mt-1">Mixed signals. E.g., good momentum but unfavorable IV or low volume.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-orange-500 dark:text-orange-400">🔻 AVOID (20-39)</span>
+                <p className="mt-1">Unfavorable F&amp;O setup. High risk of premium decay or lack of clear trend.</p>
+              </div>
+              <div className="bg-secondary/40 p-3 rounded">
+                <span className="font-semibold text-red-500 dark:text-red-400">❌ SELL (0-19)</span>
+                <p className="mt-1">Highly dangerous setup. Do not initiate new positions.</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <strong>F&amp;O Scoring:</strong> Composite scores computed combining Open Interest (OI) size, OI change %, 5-day price momentum, Implied Volatility (IV) sweet spots, relative volume, and PCR (Put-Call Ratio).
+            </p>
           </div>
 
           <p className="text-[11px] text-muted-foreground border-t border-border pt-4 mt-6 leading-relaxed">
