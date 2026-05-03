@@ -399,3 +399,88 @@ function mfTier(score: number): any {
   if (score >= 35) return { label: 'REVIEW NEEDED',  badge: '⚠️',    color: 'amber'  };
   return              { label: 'AVOID',              badge: '❌',     color: 'red'    };
 }
+
+// ---------- Crypto Scoring (Part 5) ----------
+
+export function calculateCryptoScore(coin: any) {
+  const scores: any = {};
+
+  // ── Factor 1: Multibagger Potential (30%) ──
+  // Based on ATH recovery multiple or analyst target
+  const multiple = coin.ai_analyst?.multibagger_estimate?.return_multiple;
+  scores.potential = multiple == null ? 50
+    : multiple >= 10 ? 95
+    : multiple >= 5  ? 80
+    : multiple >= 3  ? 65
+    : multiple >= 2  ? 50
+    : 30;
+
+  // ── Factor 2: Fundamental Quality (25%) ──
+  const fundMap: Record<string, number> = { STRONG: 90, ADEQUATE: 65, WEAK: 30, UNCLEAR: 45 };
+  scores.fundamentals = fundMap[coin.fundamentals?.fundamental_verdict] ?? 45;
+
+  // ── Factor 3: Technical Position (20%) ──
+  // RSI-based: oversold = good entry, overbought = risky entry
+  const rsi = coin.technical?.rsi_14;
+  scores.technical = rsi == null ? 50
+    : rsi < 30 ? 95      // oversold — excellent entry zone
+    : rsi < 40 ? 80      // approaching oversold — good entry
+    : rsi < 60 ? 65      // healthy range
+    : rsi < 70 ? 45      // getting expensive
+    : 20;                // overbought — wait for pullback
+
+  // ── Factor 4: Research Sentiment (15%) ──
+  const sentMap: Record<string, number> = {
+    BULLISH: 90, NEUTRAL: 55,
+    BEARISH: 20, 'NO COVERAGE': 40
+  };
+  scores.sentiment = sentMap[coin.research_desk?.sentiment] ?? 40;
+
+  // ── Factor 5: Tokenomics Health (10%) ──
+  const tokMap: Record<string, number> = { LOW: 90, MEDIUM: 60, HIGH: 25 };
+  scores.tokenomics = tokMap[coin.fundamentals?.tokenomics_risk] ?? 50;
+
+  // ── Composite ──
+  const composite = Math.round(
+    (scores.potential    * 0.30) +
+    (scores.fundamentals * 0.25) +
+    (scores.technical    * 0.20) +
+    (scores.sentiment    * 0.15) +
+    (scores.tokenomics   * 0.10)
+  );
+
+  // ── Hard overrides ──
+  // Verified price must be < ₹200
+  if (coin.price_inr >= 200) {
+    return { 
+      composite: 0, 
+      breakdown: scores,
+      tier: { label: 'EXCLUDED', badge: '❌', color: 'red' },
+      reason: "Price ≥ ₹200 — excluded from this tab" 
+    };
+  }
+  // No real utility → cap at HOLD regardless of score
+  if (coin.fundamentals?.real_world_utility === 'NONE') {
+    const capped = Math.min(composite, 45);
+    return {
+      composite: capped,
+      breakdown: scores,
+      tier: cryptoTier(capped),
+      reason: "No real utility — capped at HOLD"
+    };
+  }
+
+  return {
+    composite: Math.min(Math.max(composite, 0), 100),
+    breakdown: scores,
+    tier: cryptoTier(composite)
+  };
+}
+
+export function cryptoTier(score: number) {
+  if (score >= 80) return { label: 'STRONG BUY',       badge: '🚀',  color: 'green' as const };
+  if (score >= 65) return { label: 'BUY / ACCUMULATE', badge: '✅',  color: 'green' as const };
+  if (score >= 50) return { label: 'SPECULATIVE BUY',  badge: '⚡',  color: 'blue' as const  };
+  if (score >= 35) return { label: 'HOLD / WATCH',     badge: '⚠️', color: 'amber' as const };
+  return              { label: 'AVOID',                badge: '❌',  color: 'red' as const   };
+}

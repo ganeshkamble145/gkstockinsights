@@ -9,6 +9,7 @@ import { FnoDashboard } from "@/components/screener/FnoDashboard";
 import { AIPerformanceDashboard } from "@/components/screener/AIPerformanceDashboard";
 import { MyPortfolioDashboard } from "@/components/portfolio/MyPortfolioDashboard";
 import { MfDashboard } from "@/components/mf/MfDashboard";
+import { CryptoDashboard } from "@/components/screener/CryptoDashboard";
 import { MarketStatusBadge } from "@/components/screener/MarketStatusBadge";
 import { cn } from "@/lib/utils";
 import stockLogo from "@/assets/stock-logo.png";
@@ -16,7 +17,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { useGeminiKey } from "@/hooks/use-gemini-key";
 import { toast } from "sonner";
 
-type View = "analyser" | "penny" | "nifty100" | "fno" | "performance" | "portfolio" | "mf";
+type View = "analyser" | "penny" | "nifty100" | "fno" | "performance" | "portfolio" | "mf" | "crypto";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -114,6 +115,14 @@ function Index() {
     );
   }
 
+  if (view === "crypto") {
+    return (
+      <div className="min-h-screen bg-background text-foreground px-4 sm:px-8 py-8">
+        <CryptoDashboard onBack={() => setView("analyser")} />
+      </div>
+    );
+  }
+
 
 
   return (
@@ -188,6 +197,15 @@ function Index() {
               )}
             >
               📊 My Portfolio
+            </button>
+            <button
+              onClick={() => setView("crypto")}
+              className={cn(
+                "px-4 py-1.5 rounded-full border text-sm font-medium transition-colors",
+                view === "crypto" ? "border-foreground text-foreground" : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+              )}
+            >
+              🚀 Crypto Picks
             </button>
 
           </div>

@@ -63,6 +63,7 @@ SELECTION CRITERIA:
 5. Strong FII/DII participation and institutional volume profiling
 6. Preferably part of NIFTY 50 or NIFTY 100
 7. NOT in active F&O ban (no MWPL breach)
+8. MANDATORY: In 'strikeSelection', explicitly state 'BUY' or 'SELL' for every strike price (e.g. 'BUY 2400 CE / SELL 2500 CE').
 
 For each of the 10 stocks supply ALL fields in the JSON schema below.
 Trader profile: ₹50,000 – ₹1,00,000 capital, conservative risk preference. Favour defined-risk strategies (spreads, iron condors) over naked options.
@@ -102,7 +103,7 @@ Return ONLY valid JSON (no prose, no markdown fences) matching this schema:
       "strategy": {
         "name": "Bull Call Spread",
         "marketOutlook": "moderately bullish",
-        "strikeSelection": "strikes",
+        "strikeSelection": "BUY 2800 CE / SELL 2900 CE",
         "expiry": "Weekly | Monthly",
         "entryCondition": "trigger",
         "exitCondition": "target",

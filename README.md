@@ -15,6 +15,7 @@ A full-stack, AI-powered Indian stock market analysis platform for long-term inv
 | **Penny Stocks** | Top 10 undervalued penny stocks (price < ₹100) ranked by composite score |
 | **NIFTY 100** | Top 10 undervalued large-cap picks from the Nifty 100 index |
 | **F&O Trading** | Top 10 stocks best-suited for Futures & Options strategies |
+| **Crypto Picks** | Top 10 undervalued cryptos under ₹200 with India tax calculator |
 | **⚡ AI Performance** | Tracks recommendation accuracy (Win Rate) and stores AI self-learning takeaways |
 | **📈 Mutual Funds** | 15 top funds (3 per category) with 6-factor scoring and dual AI/Expert research |
 | **📊 My Portfolio** | Personal portfolio tracker — Excel import/export, add/edit/delete, get AI recommendations |
@@ -52,7 +53,8 @@ The platform now implements a closed-loop learning architecture:
 |-----|-----------|
 | Stock Analyser | Valuation, thesis, DCF, peer comparison, analyst consensus, 8 report sections |
 | Screener (Penny/Nifty) | Ranked 10-stock list: sector, P/E, ROCE, promoter holding, composite score, recommendation |
-| F&O | Greeks (Delta/Theta/Gamma), Max Pain, PCR, strategy legs (entry/target/SL), options play type |
+| F&O | Greeks (Delta/Theta/Gamma), Max Pain, PCR, strategy legs (BUY/SELL), options play type |
+| Crypto Picks | Multibagger potential, 52W high/low, RSI, India exchange availability, dual-analyst view |
 | AI Performance | Historical prediction accuracy, model self-rating, confidence calibration |
 | Mutual Funds | 3 picks per category: NAV, Returns, AUM, Alpha, Sharpe, Dual Analysis, Suitability |
 | My Portfolio | Verdict, strategy, entry/target/SL prices, score, reasoning, risks per holding |
@@ -83,15 +85,14 @@ The platform now implements a closed-loop learning architecture:
 | Volume vs Average | 15% | High volume → liquid contract |
 | Put-Call Ratio | 10% | PCR 0.7–1.3 → balanced sentiment |
 
-### Mutual Funds — 6 Factors
+### Crypto Assets — 5 Factors
 | Factor | Weight | Signal |
 |--------|--------|--------|
-| Return Consistency | 30% | Higher 5Y/3Y/1Y CAGR relative to category avg |
-| Risk-Adjusted Perf | 20% | Higher Sharpe Ratio (> 1.0) → higher score |
-| Cost Efficiency | 15% | Lower Expense Ratio → higher score |
-| Ratings Consensus | 15% | Value Research/Morningstar/Crisil stars/medals |
-| Manager Quality | 10% | Tenure > 10 years → max score |
-| Scale & Liquidity | 10% | Larger AUM → more stability |
+| Multibagger Potential | 30% | Estimated return multiple vs historical volatility |
+| Fundamental Utility | 25% | Real-world use case + developer activity |
+| Technical Momentum | 20% | RSI(14) in 35-65 range + 52W range position |
+| Tokenomics Risk | 15% | Inflation rate + unlock schedule (lower = better) |
+| Sentiment Consensus | 10% | Research Desk + AI Analyst agreement |
 
 ### Recommendation Tiers
 | Score | Tier | Badge |
@@ -232,10 +233,11 @@ src/
 │   ├── ai-provider.ts           # Gemini 5-model fallback cascade + parseAIJson
 │   ├── analyser.functions.ts    # Server fn: deep fundamental report (8 sections)
 │   ├── screener.functions.ts    # Server fn: Penny & Nifty 100 AI screener
-│   ├── fno.functions.ts         # Server fn: F&O AI screener
+│   ├── fno.functions.ts         # Server fn: F&O AI screener (BUY/SELL explicit strikes)
+│   ├── crypto.functions.ts      # Server fn: Crypto AI discovery (Top 10 < ₹200)
 │   ├── mf.functions.ts          # Server fn: Mutual Funds discovery & research
 │   ├── portfolio-ai.functions.ts # Server fn: batch AI recommendations for portfolio
-│   ├── scoring.ts               # Composite scoring (equity 6-factor + F&O 6-factor)
+│   ├── scoring.ts               # Composite scoring (equity 6-factor + F&O + Crypto)
 │   ├── perf-utils.ts            # TTL cache, fetchWithRetry, market hours, ErrorUI
 │   ├── pdf-export.ts            # PDF generation (compact table + detailed cards)
 │   ├── types.ts                 # TypeScript interfaces (StockReport, MetricRow…)
@@ -251,8 +253,9 @@ src/
 │   ├── mf/
 │   │   └── MfDashboard.tsx            # Mutual Funds research dashboard
 │   ├── screener/
-│   │   ├── ScreenerDashboard.tsx      # Penny & Nifty 100 ranked table/card views
-│   │   ├── FnoDashboard.tsx           # F&O dashboard with option chain
+│   │   ├── ScreenerDashboard.tsx      # Penny & Nifty 100 ranked table/card views (52W High/Low)
+│   │   ├── FnoDashboard.tsx           # F&O dashboard (52W range bar + explicit strikes)
+│   │   ├── CryptoDashboard.tsx        # Crypto dashboard (India Tax Calc + Suitability)
 │   │   ├── AIPerformanceDashboard.tsx # AI accuracy tracking dashboard
 │   │   ├── PerfUI.tsx                 # Skeleton loaders, ErrorCard, ErrorPill
 │   │   ├── MarketStatusBadge.tsx      # Live market open/closed indicator

@@ -39,17 +39,19 @@ Used in the "F&O Trading" tab to identify high-probability derivative plays.
 | **Volume Ratio** | 15% | Ratio of current contract volume vs. average. |
 | **Put-Call Ratio** | 10% | Balanced sentiment (0.7 to 1.3). Extremes suggest reversal risk. |
 
-### 📊 1.3 Mutual Fund Scoring Logic
-Used in the "Mutual Funds" tab to rank funds across Large, Mid, Small, Flexi, and ELSS categories.
+| **AUM & Scale** | 10% | Favors funds with large AUM (>₹20k Cr) for liquidity and stability. |
+| **Dual Analysis** | Bonus | Agreement between Research Desk & AI Analyst increases confidence. |
+
+### 📊 1.4 Crypto Discovery Logic
+Used in the "Crypto Picks" tab to identify high-potential assets under ₹200.
 
 | Factor | Weight | Logic / Formula |
 | :--- | :--- | :--- |
-| **Returns Quality** | 30% | Weighted average of 5Y, 3Y, and 1Y CAGR relative to category benchmarks. |
-| **Risk-Adjusted Perf** | 20% | Powered primarily by the Sharpe Ratio. Scores > 1.0 are heavily favored. |
-| **Cost Efficiency** | 15% | Inverse scaling of Expense Ratio. Direct plans < 0.5% get max score. |
-| **Ratings Consensus** | 15% | Aggregated sentiment from Value Research, Morningstar, and Crisil. |
-| **Manager Tenure** | 10% | Continuity bonus for managers with >7 years at the same fund. |
-| **AUM & Scale** | 10% | Favors funds with large AUM (>₹20k Cr) for liquidity and stability. |
+| **Multibagger Calc** | 30% | AI-simulated forward multiple vs All-Time High (ATH) recovery potential. |
+| **Utility Score** | 25% | Evaluation of real-world adoption, ecosystem growth, and protocol security. |
+| **India Suitability** | 20% | Availability on WazirX/CoinDCX + Indian tax impact reconciliation. |
+| **Risk Factors** | 15% | Regulatory risk, liquidity depth, and volatility profiling. |
+| **Price Discipline** | 10% | Enforces a strict ₹200 cap to identify accessible opportunities for retail. |
 
 ### 🏷️ 1.3 Recommendation Tiers
 The final composite score is mapped to actionable badges. Note: Recommendations are now strictly enforced by the **Valuation Safety Cap** logic.
@@ -123,6 +125,14 @@ Implemented in `perf-utils.ts` to reduce API costs and latency:
 The `useMarketStatus` hook prevents unnecessary API calls:
 - **Polls every 60s** only during 09:15 – 15:30 IST, Monday – Friday.
 - **Auto-Pauses** if the browser tab is hidden (using `visibilitychange` API) to save user data/battery.
+
+### 🛡️ 3.5 UI Hardening & Defensive Rendering
+Implemented to handle inconsistent AI responses and edge-case market data:
+- **Optional Chaining:** Ubiquitous use of `?.` for all AI-derived properties (performance, technical, thinking).
+- **Fallback Formatter:** Numeric metrics use `(val ?? 0).toLocaleString()` to prevent crashes on partial data.
+- **52W Context:** Every asset type (Stock, F&O, Crypto) now renders 52-week High/Low extremes for price context.
+- **Explicit F&O Actions:** F&O strikes are explicitly prefixed with "BUY" or "SELL" to eliminate tactical ambiguity.
+- **Truncation Fix:** Multi-leg F&O strategies use full-width row spanning and line wrapping to prevent instructions from being cut off.
 
 ---
 

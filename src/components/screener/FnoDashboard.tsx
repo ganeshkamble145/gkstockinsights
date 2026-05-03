@@ -504,7 +504,9 @@ function FnoTable({ rows, ranked }: { rows: FnoRanked[]; ranked: FnoRanked[] }) 
               <th className="px-3 py-2 text-left">Sector</th>
               <Th k="score" label="Score" align="right" />
               <Th k="cmp" label="CMP" align="right" />
-              <Th k="changePct" label="% Chg" align="right" />
+               <Th k="changePct" label="% Chg" align="right" />
+              <th className="px-3 py-2 text-right">52W Low</th>
+              <th className="px-3 py-2 text-right">52W High</th>
               <th className="px-3 py-2 text-right">OI</th>
               <Th k="iv" label="IV" align="right" />
               <th className="px-3 py-2 text-left">Trend</th>
@@ -532,8 +534,14 @@ function FnoTable({ rows, ranked }: { rows: FnoRanked[]; ranked: FnoRanked[] }) 
                   <td className="px-3 py-2 text-right tabular-nums">
                     {live ? `₹${inrFmt.format(live.price)}` : r.liveState?.status === "loading" ? "…" : "—"}
                   </td>
-                  <td className={cn("px-3 py-2 text-right tabular-nums", chgTone)}>
+                   <td className={cn("px-3 py-2 text-right tabular-nums", chgTone)}>
                     {live ? `${live.changePercent >= 0 ? "+" : ""}${live.changePercent.toFixed(2)}%` : ""}
+                  </td>
+                  <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
+                    {live?.fiftyTwoWeekLow ? `₹${inrFmt.format(live.fiftyTwoWeekLow)}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
+                    {live?.fiftyTwoWeekHigh ? `₹${inrFmt.format(live.fiftyTwoWeekHigh)}` : "—"}
                   </td>
                   <td className="px-3 py-2 text-right text-muted-foreground">{r.stock.openInterest}</td>
                   <td className="px-3 py-2 text-right">{r.stock.iv}</td>
@@ -574,13 +582,31 @@ function FnoCard({ row, rank }: { row: FnoRanked; rank: number }) {
         <ScorePill score={score.total} />
       </div>
 
-      <div className="flex items-end justify-between gap-3">
+       <div className="flex items-end justify-between gap-3">
         <LivePriceBlock state={liveState} align="left" />
         <div className="flex flex-col items-end gap-1">
           <Badge label={stock.trend} tone={trendTone as "ok" | "warn" | "bad"} />
           <RecommendationBadge score={score.total} />
         </div>
       </div>
+
+      {/* 52W range bar */}
+      {live?.fiftyTwoWeekHigh && live.fiftyTwoWeekLow && (
+        <div className="mt-3">
+          <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+            <span>52W: ₹{inrFmt.format(live.fiftyTwoWeekLow)}</span>
+            <span>₹{inrFmt.format(live.fiftyTwoWeekHigh)}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-secondary relative overflow-hidden">
+            <div
+              className="absolute top-0 h-full w-1.5 bg-foreground rounded-full"
+              style={{
+                left: `${((live.price - live.fiftyTwoWeekLow) / (live.fiftyTwoWeekHigh - live.fiftyTwoWeekLow)) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 mt-3 text-center">
         <Mini label="OI" value={stock.openInterest} />
@@ -614,7 +640,9 @@ function FnoCard({ row, rank }: { row: FnoRanked; rank: number }) {
         <div className="text-sm font-semibold">{stock.strategy.name}</div>
         <div className="text-xs text-muted-foreground mt-0.5">{stock.strategy.marketOutlook}</div>
         <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
-          <KV label="Strikes" value={stock.strategy.strikeSelection} />
+          <div className="col-span-2">
+            <KV label="Strikes" value={stock.strategy.strikeSelection} />
+          </div>
           <KV label="R:R" value={stock.strategy.riskReward} />
           <KV label="Max profit" value={stock.strategy.maxProfit} />
           <KV label="Max risk" value={stock.strategy.maxRisk} />
@@ -675,10 +703,10 @@ function KV({ label, value, block }: { label: string; value: string; block?: boo
       </div>
     );
   }
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-medium mt-0.5 truncate">{value}</div>
-    </div>
-  );
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="font-medium mt-0.5 leading-tight">{value}</div>
+      </div>
+    );
 }

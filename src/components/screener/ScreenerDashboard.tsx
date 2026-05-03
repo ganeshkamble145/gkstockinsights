@@ -497,7 +497,9 @@ function RankedTable({
               <th className="px-3 py-2 text-left">Sector</th>
               <Th k="score" label="Score" align="right" />
               <Th k="cmp" label="CMP" align="right" />
-              <Th k="changePct" label="% Chg" align="right" />
+               <Th k="changePct" label="% Chg" align="right" />
+              <th className="px-3 py-2 text-right">52W Low</th>
+              <th className="px-3 py-2 text-right">52W High</th>
               <Th k="pe" label="P/E" align="right" />
               <Th k="roce" label="ROCE" align="right" />
               <th className="px-3 py-2 text-right">RSI</th>
@@ -532,8 +534,14 @@ function RankedTable({
                           ? <span className="text-[10px] text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => retrySingle?.(r.symbol)}>⚠ Retry</span>
                           : "—"}
                   </td>
-                  <td className={cn("px-3 py-2 text-right tabular-nums", chgTone)}>
+                   <td className={cn("px-3 py-2 text-right tabular-nums", chgTone)}>
                     {live ? `${live.changePercent >= 0 ? "+" : ""}${live.changePercent.toFixed(2)}%` : ""}
+                  </td>
+                  <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
+                    {live?.fiftyTwoWeekLow ? `₹${inrFmt.format(live.fiftyTwoWeekLow)}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
+                    {live?.fiftyTwoWeekHigh ? `₹${inrFmt.format(live.fiftyTwoWeekHigh)}` : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">{r.stock.pe}</td>
                   <td className="px-3 py-2 text-right">{r.stock.roce}</td>
