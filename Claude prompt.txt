@@ -1,0 +1,834 @@
+You are a senior equity research analyst and independent AI investment strategist 
+specializing in Indian stock markets (NSE/BSE). I am building "GK Stock Insights" — 
+an AI-powered Indian stock analysis platform using React 19, TanStack Start, 
+Google Gemini AI (with web_search tool enabled), Yahoo Finance data proxy, 
+and Supabase.
+
+The app has 5 tabs: Stock Analyser, Penny Stocks, NIFTY 100, F&O Trading, My Portfolio.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THE CORE PHILOSOPHY — DUAL RECOMMENDATION ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every stock card and report in this app must show TWO separate, clearly labelled 
+recommendations side by side:
+
+  ┌─────────────────────────┐   ┌─────────────────────────┐
+  │  📊 ANALYST CONSENSUS   │   │  🤖 AI RECOMMENDATION   │
+  │  BUY                    │   │  STRONG BUY             │
+  │  Target: ₹485           │   │  Target: ₹510           │
+  │  12 analysts · Avg TP   │   │  AI Confidence: HIGH    │
+  │  Source: Moneycontrol   │   │  Agrees with analysts   │
+  └─────────────────────────┘   └─────────────────────────┘
+
+WHY TWO RECOMMENDATIONS:
+- Analyst Consensus = what the brokerage community currently thinks
+  (sourced from web search on Moneycontrol, Trendlyne, broker reports)
+- AI Recommendation = what the AI independently concludes after applying
+  its own reasoning on top of: live price data + analyst consensus +
+  technical indicators + market context + sector outlook
+- When they AGREE → strong signal for the user
+- When they DISAGREE → the AI must explain exactly why it diverges
+  (e.g., "Analysts are bullish but AI sees overbought RSI + weak volume 
+   confirmation — suggesting waiting for a pullback before entry")
+
+This gives retail investors both the institutional view AND an independent 
+second opinion in plain English.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL SETUP — WEB SEARCH + BUG FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enable web search on every Gemini call:
+  tools: [{ type: "web_search_20250305", name: "web_search" }]
+
+Trusted sources Gemini must search:
+  Moneycontrol, Trendlyne, Tickertape, Economic Times Markets,
+  Motilal Oswal research, ICICI Direct, Kotak Securities,
+  HDFC Securities, Axis Securities, Zerodha Varsity,
+  ValueResearchOnline, NSEIndia.com, BSEIndia.com, Screener.in
+
+BUG FIXES (implement before anything else):
+
+  1. Auto ".NS" suffix for all Yahoo Finance fetches:
+     const formatTicker = (s) => s.includes('.') ? s : s + '.NS';
+
+  2. Batch fetching — max 5 stocks per batch, 600ms delay:
+     async function fetchInBatches(tickers, batchSize=5, delay=600) {
+       const results = [];
+       for (let i = 0; i < tickers.length; i += batchSize) {
+         const batch = tickers.slice(i, i + batchSize);
+         const res = await Promise.allSettled(
+           batch.map(t => fetchStockData(formatTicker(t)))
+         );
+         results.push(...res);
+         if (i + batchSize < tickers.length)
+           await new Promise(r => setTimeout(r, delay));
+       }
+       return results;
+     }
+
+  3. 10-second timeout per fetch:
+     async function fetchStockData(ticker) {
+       const ctrl = new AbortController();
+       const t = setTimeout(() => ctrl.abort(), 10000);
+       try {
+         const r = await fetch(`/api/public/yahoo-proxy?symbol=${ticker}`,
+           { signal: ctrl.signal });
+         clearTimeout(t);
+         return await r.json();
+       } catch { clearTimeout(t); return { symbol: ticker, error: true }; }
+     }
+
+  4. Safe AI JSON parser:
+     function safeParseAI(text) {
+       try {
+         const c = text.replace(/```json|```/gi,'').trim();
+         return JSON.parse(c);
+       } catch {
+         const a = text.match(/\[[\s\S]*\]/);
+         if (a) try { return JSON.parse(a[0]); } catch {}
+         const o = text.match(/\{[\s\S]*\}/);
+         if (o) try { return [JSON.parse(o[0])]; } catch {}
+         return null;
+       }
+     }
+
+  5. Sanitize every AI stock response — fix ₹0 analyst target:
+     function sanitizeStock(s) {
+       const price = Number(s.current_price) || 0;
+       const at = Number(s.analyst_consensus?.target_price);
+       const ait = Number(s.ai_recommendation?.target_price);
+       return {
+         ...s,
+         analyst_consensus: {
+           ...s.analyst_consensus,
+           target_price: at > 0 ? at : price * 1.12,
+           source: s.analyst_consensus?.source || 'AI Estimated'
+         },
+         ai_recommendation: {
+           ...s.ai_recommendation,
+           target_price: ait > 0 ? ait : price * 1.15,
+         },
+         composite_score: Math.min(100, Math.max(0,
+           Number(s.composite_score) || 50))
+       };
+     }
+
+  6. Divide-by-zero guards in scoring:
+     const range = week52_high - week52_low;
+     const proximityScore = range > 0
+       ? ((price - week52_low) / range) * 100 : 50;
+     const volumeScore = avg_vol > 0
+       ? Math.min((vol / avg_vol) / 3 * 100, 100) : 50;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THE DUAL RECOMMENDATION JSON SCHEMA
+(used in ALL tabs — learn this structure first)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every stock returned by AI must follow this exact structure:
+
+{
+  "symbol": "TICKER",
+  "company_name": "Full Name",
+  "sector": "Sector",
+  "current_price": 0,
+  "composite_score": 0,          ← 0–100, calculated from Yahoo Finance data
+
+  "analyst_consensus": {
+    "recommendation": "STRONG BUY / BUY / HOLD / SELL",
+    "target_price": 0,           ← from Moneycontrol/Trendlyne search, NEVER 0
+    "upside_pct": 0,
+    "num_analysts": 0,           ← number of analysts covering, 0 if not found
+    "source": "Moneycontrol / Trendlyne / Broker name / AI Estimated",
+    "source_url": "URL if found",
+    "summary": "One sentence — what analysts collectively think and why"
+  },
+
+  "ai_recommendation": {
+    "recommendation": "STRONG BUY / BUY / HOLD / AVOID / SELL",
+    "target_price": 0,           ← AI's own target, based on its independent analysis, NEVER 0
+    "upside_pct": 0,
+    "confidence": "HIGH / MEDIUM / LOW",
+    "agrees_with_analysts": true / false,
+    "divergence_reason": "ONLY if agrees_with_analysts is false — explain exactly why AI differs",
+    "thinking": "3–5 sentences of AI's independent reasoning BEFORE reaching conclusion.
+                 Must cover: (1) what the price/volume/RSI data says,
+                             (2) what sector context suggests,
+                             (3) whether analyst target seems reasonable given current data,
+                             (4) any hidden risk or opportunity analysts may have missed",
+    "entry_price": 0,
+    "stop_loss": 0,
+    "horizon": "SHORT (< 3 months) / MEDIUM (3–12 months) / LONG (1–3 years)",
+    "summary": "One sentence final AI verdict in plain English for a retail investor"
+  },
+
+  "signal_strength": "STRONG / MODERATE / WEAK / CONFLICTED",
+  "signal_explanation": "One sentence: both agree = STRONG, they disagree = CONFLICTED + reason",
+
+  "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
+  "upcoming_catalyst": "Next earnings / product launch / policy event that could move the stock"
+}
+
+signal_strength logic:
+  analyst BUY/STRONG BUY + AI BUY/STRONG BUY → "STRONG"
+  both HOLD                                   → "MODERATE"
+  analyst BUY + AI HOLD or AVOID              → "CONFLICTED"
+  analyst HOLD/SELL + AI BUY                  → "CONFLICTED"
+  analyst SELL + AI SELL                      → "STRONG" (strong exit signal)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — PENNY STOCKS TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3-PHASE PIPELINE:
+
+── PHASE 1: AI DISCOVERS STOCKS (web search) ──
+
+Prompt to Gemini (web_search enabled):
+---
+You are a SEBI-style research analyst. Use your web search tool to find the 
+top penny stocks in India being actively recommended by analysts TODAY.
+
+Search all of these:
+1. "top penny stocks India {month} {year} analyst buy recommendation"
+2. "best penny stocks NSE under ₹100 research report {year}"
+3. "Moneycontrol penny stocks strong buy {month} {year}"
+4. "Economic Times penny stocks multibagger recommendation {year}"
+5. "Trendlyne NSE penny stocks strong buy consensus {year}"
+6. "smallcap undervalued stocks India broker recommendation {year}"
+
+Selection criteria — stock MUST meet all:
+  • Price ₹2–₹100 on NSE
+  • Market cap > ₹50 crore
+  • Mentioned in at least one analyst report or financial publication
+  • Not under SEBI ban, suspension, or delisting notice
+  • Has active trading (not circuit-locked for 5+ days)
+
+Return exactly 20 stocks as JSON:
+{
+  "stocks": [{
+    "symbol": "NSE_TICKER",
+    "company_name": "...",
+    "sector": "...",
+    "why_selected": "Cite specific source and what they said",
+    "source": "Publication/brokerage name",
+    "source_url": "URL if available"
+  }],
+  "search_summary": "2 sentences on what you found",
+  "market_context": "1 sentence on current penny stock market environment",
+  "generated_at": "ISO timestamp"
+}
+Return only JSON. No markdown.
+---
+
+── PHASE 2: FETCH YAHOO FINANCE DATA ──
+Use fetchInBatches() to fetch for each discovered symbol:
+current_price, pe_ratio, volume, avg_volume_3m, week52_high,
+week52_low, market_cap, beta, price_5d_change_pct, rsi (compute from OHLCV)
+
+── PHASE 3: DUAL RECOMMENDATION ANALYSIS ──
+
+Prompt to Gemini — 5 stocks per call (web_search enabled):
+---
+You are an independent AI investment analyst for Indian retail investors.
+You have TWO roles for each stock below:
+  Role A: Research what analysts currently recommend (search for it)
+  Role B: Form your OWN independent view using your reasoning and the live data
+
+Live Yahoo Finance data provided:
+{symbol, company_name, sector, current_price, pe_ratio,
+ price_5d_change_pct, volume_ratio, rsi, week52_high, week52_low}
+
+For EACH stock, do this in order:
+
+STEP 1 — ANALYST RESEARCH (search the web):
+  Search: "{company_name} stock target price analyst recommendation {month} {year}"
+  Search: "{symbol} Moneycontrol analyst target OR Trendlyne consensus"
+  Extract: analyst recommendation, consensus target price, number of analysts, source
+
+STEP 2 — AI INDEPENDENT THINKING (use your own analysis):
+  Think through:
+  a) What does the PRICE DATA say? (momentum, RSI, proximity to 52W high/low)
+  b) What does the VOLUME say? (accumulation or distribution?)
+  c) Is the ANALYST TARGET reasonable given current price and PE?
+  d) What is the SECTOR doing? Any tailwinds or headwinds?
+  e) What is ONE THING analysts may have MISSED or OVERLOOKED?
+  f) What would make you CHANGE your mind? (bull case trigger / bear case trigger)
+  Only AFTER this thinking → form your AI recommendation
+
+STEP 3 — RECONCILE:
+  If AI agrees with analysts → signal_strength = STRONG or MODERATE
+  If AI disagrees → explain exactly why in divergence_reason (be specific, not vague)
+
+Return the dual recommendation JSON schema defined earlier.
+Every field is required. analyst_consensus.target_price and 
+ai_recommendation.target_price must NEVER be 0.
+Return only a JSON array. No markdown.
+---
+
+DISPLAY — Penny Stocks table (sortable columns):
+┌──────┬────────┬──────────┬────────┬─────────┬────────────────────┬──────────────────┬──────────────┬──────────────┐
+│ Rank │ Symbol │ Price    │ Score  │ Signal  │ Analyst            │ AI               │ Analyst Tgt  │ AI Target    │
+│      │        │          │        │         │ Recommendation     │ Recommendation   │ + Source     │ + Confidence │
+└──────┴────────┴──────────┴────────┴─────────┴────────────────────┴──────────────────┴──────────────┴──────────────┘
+
+Signal column colour coding:
+  STRONG    → green badge
+  MODERATE  → blue badge
+  CONFLICTED → amber badge  ← most interesting for users
+  WEAK      → grey badge
+
+On row expand (click any row), show full detail panel:
+  • AI Thinking (the 3–5 sentence reasoning block)
+  • Analyst Summary
+  • Divergence Reason (if CONFLICTED)
+  • Entry / Stop Loss from AI
+  • Key Risks
+  • Upcoming Catalyst
+  • Source URL for analyst data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — NIFTY 100 TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── PHASE 1: DISCOVERY (web search) ──
+---
+You are a large-cap equity analyst. Use web search to find which Nifty 100 
+stocks have the strongest current analyst BUY consensus AND independent 
+merit as an investment.
+
+Search all of these:
+1. "Nifty 100 top picks analyst buy {month} {year}"
+2. "Motilal Oswal large cap top picks {year}"
+3. "ICICI Direct Nifty 100 buy recommendation {month} {year}"
+4. "Kotak Securities large cap stocks to buy {year}"
+5. "HDFC Securities Nifty 100 recommendation {year}"
+6. "Trendlyne Nifty 100 strong buy consensus {year}"
+7. "undervalued blue chip stocks India {year} analyst"
+
+Select 20 Nifty 100 stocks — current index constituents only.
+Prioritize stocks with: most analyst BUY calls + positive recent results 
++ sector tailwind.
+
+Return JSON:
+{
+  "stocks": [{
+    "symbol": "NSE_TICKER",
+    "company_name": "...",
+    "sector": "...",
+    "analyst_consensus_preview": "STRONG BUY / BUY / HOLD",
+    "why_selected": "Cite brokerage and reasoning",
+    "source": "...",
+    "source_url": "..."
+  }],
+  "top_sectors": ["Sector1", "Sector2"],
+  "market_context": "1 sentence on large-cap market environment now",
+  "generated_at": "ISO timestamp"
+}
+Return only JSON. No markdown.
+---
+
+── PHASE 2: FETCH YAHOO FINANCE DATA (same as Penny tab) ──
+
+── PHASE 3: DUAL RECOMMENDATION ANALYSIS ──
+---
+You are an independent AI analyst. For each large-cap stock below, research 
+analyst views AND form your own independent opinion.
+
+Live data: {symbol, company_name, sector, current_price, pe_ratio,
+            price_5d_change_pct, volume_ratio, rsi, week52_high, week52_low, market_cap}
+
+For EACH stock:
+
+STEP 1 — ANALYST RESEARCH:
+  Search: "{company_name} 12-month target price analyst consensus {year}"
+  Search: "{symbol} Trendlyne OR Moneycontrol analyst recommendation"
+  Note: num_analysts, consensus target, recommendation
+
+STEP 2 — AI INDEPENDENT THINKING:
+  Think through:
+  a) VALUATION: Is P/E justified vs sector and historical average?
+     For large-caps: P/E < 20 = cheap, 20–30 = fair, > 30 = premium
+  b) QUALITY: Is this a compounding business? (consistent revenue growth?)
+  c) MOMENTUM: Is institutional money flowing in or out?
+  d) MACRO FIT: Does this sector benefit from current Indian macro trends?
+     (e.g., infrastructure push, financialization, domestic consumption)
+  e) ANALYST BIAS CHECK: Are analysts overly bullish due to investment banking
+     relationships? Does the analyst target have a realistic basis?
+  f) INDEPENDENT TARGET: What would YOU price this at over 12 months?
+
+STEP 3 — RECONCILE and return dual recommendation JSON schema.
+Every field required. No 0 values for targets. Return only JSON array.
+---
+
+DISPLAY: Same table structure as Penny tab.
+Additional field in expanded view: "Macro Tailwind" — one sentence on 
+why the current Indian economic environment helps or hurts this stock.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — F&O TRADING TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── PHASE 1: DISCOVERY (web search) ──
+---
+You are an F&O derivatives specialist. Use web search to find which stocks 
+and indices are the best F&O trading opportunities RIGHT NOW.
+
+Search all of these:
+1. "NSE F&O best options strategy {month} {year}"
+2. "Moneycontrol options strategy recommendation {month} {year}"
+3. "Zerodha Varsity F&O stock pick {month} {year}"
+4. "Economic Times derivatives outlook {month} {year}"
+5. "NSE most active futures open interest buildup {year}"
+6. "Axis Securities options call put recommendation {year}"
+7. "India VIX outlook options strategy {month} {year}"
+
+Select 20 NSE F&O-eligible stocks/indices.
+Always include NIFTY (^NSEI) and BANKNIFTY (^NSEBANK) as index entries.
+
+Return JSON:
+{
+  "stocks": [{
+    "symbol": "NSE_TICKER",
+    "name": "...",
+    "type": "INDEX / LARGE_CAP / MID_CAP",
+    "market_view": "BULLISH / BEARISH / NEUTRAL",
+    "why_selected": "Cite source and specific reason",
+    "source": "..."
+  }],
+  "india_vix_context": "Current VIX level and what it means for options buyers vs sellers",
+  "market_sentiment": "BULLISH / BEARISH / SIDEWAYS",
+  "generated_at": "ISO timestamp"
+}
+Return only JSON. No markdown.
+---
+
+── PHASE 2: FETCH YAHOO FINANCE DATA ──
+Fetch: current_price, beta, volume, avg_volume, week52_high, week52_low,
+       price_5d_change_pct
+
+F&O COMPOSITE SCORE (beta-based volatility, no NSE scraping needed):
+  volume_score    = min(volume_ratio / 3 * 100, 100)           weight 40%
+  momentum_score  = clip((5d_change + 10) / 20 * 100, 0, 100)  weight 35%
+  volatility_score (from beta):                                 weight 25%
+    beta < 1.0  → 30 | 1.0–1.2 → 60 | 1.2–2.0 → 100 | >2.0 → 50
+
+── PHASE 3: DUAL RECOMMENDATION ANALYSIS ──
+---
+You are an independent F&O analyst AND a market strategist.
+You have two roles for each stock below:
+  Role A: What do analysts/market experts currently recommend for this F&O?
+  Role B: What is YOUR independent options strategy based on price action,
+          volatility, and market context?
+
+Live data: {symbol, name, current_price, beta, volume_ratio,
+            price_5d_change_pct, india_vix_context, market_sentiment}
+
+For EACH stock:
+
+STEP 1 — ANALYST/MARKET RESEARCH:
+  Search: "{name} options strategy recommendation {month} {year}"
+  Search: "{symbol} futures outlook analyst {month} {year}"
+  Extract: suggested strategy, directional view, any analyst price target
+
+STEP 2 — AI INDEPENDENT THINKING (F&O specific):
+  Think through:
+  a) DIRECTION: What does price momentum and beta say about likely move?
+  b) VOLATILITY REGIME: Is India VIX high or low?
+     High VIX (>18) → sell premium strategies favored (short strangle, iron condor)
+     Low VIX (<13)  → buy premium strategies viable (long call/put, straddle)
+  c) STRATEGY FIT: Which specific options strategy fits current conditions?
+     Bull Call Spread / Bear Put Spread / Long Straddle / Covered Call etc.
+  d) TIMING: Weekly or monthly expiry? Why?
+  e) RISK/REWARD: What is the max loss and max gain for your suggested strategy?
+  f) WHAT COULD GO WRONG? One specific scenario that invalidates the trade.
+
+STEP 3 — RECONCILE and return this F&O-specific dual JSON:
+[{
+  "symbol": "...",
+  "name": "...",
+  "current_price": 0,
+  "fno_score": 0,
+
+  "analyst_view": {
+    "strategy": "CALL BUY / PUT BUY / STRADDLE / AVOID etc.",
+    "directional_bias": "BULLISH / BEARISH / NEUTRAL",
+    "entry": 0,
+    "target": 0,
+    "stop_loss": 0,
+    "expiry": "WEEKLY / MONTHLY",
+    "source": "Source name",
+    "summary": "One sentence on what market experts suggest"
+  },
+
+  "ai_recommendation": {
+    "strategy": "AI's own strategy — can differ from analyst_view",
+    "directional_bias": "BULLISH / BEARISH / NEUTRAL",
+    "entry": 0,
+    "target": 0,
+    "stop_loss": 0,
+    "max_loss": "₹X or X% — stated clearly",
+    "max_gain": "₹X or X% — stated clearly",
+    "expiry": "WEEKLY / MONTHLY",
+    "confidence": "HIGH / MEDIUM / LOW",
+    "agrees_with_analysts": true / false,
+    "divergence_reason": "Only if disagrees — specific reason",
+    "thinking": "3–4 sentences: VIX context + momentum + strategy rationale + risk",
+    "summary": "One sentence final strategy call in plain English"
+  },
+
+  "signal_strength": "STRONG / MODERATE / CONFLICTED / WEAK",
+  "key_risk": "One scenario that invalidates both analyst and AI view"
+}]
+All price fields must be non-zero. Return only JSON array.
+---
+
+DISPLAY (F&O table, 8 columns):
+Rank | Symbol | Price | F&O Score | Signal | Analyst Strategy | AI Strategy | Expiry
+
+Expanded row shows:
+  • AI Thinking (VIX context + momentum reasoning)
+  • Max Loss / Max Gain
+  • Divergence Reason if CONFLICTED
+  • Entry / Target / Stop Loss for both analyst and AI views
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — STOCK ANALYSER TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This tab gives the most detailed dual-recommendation report for a 
+single user-entered stock. The report has 5 sections.
+
+STOCK ANALYSER PROMPT:
+---
+You are a dual-role research engine:
+  Role A: Equity research analyst — find what the market and analysts think
+  Role B: Independent AI strategist — form your own view using first principles
+
+Analyze {TICKER} ({COMPANY_NAME}) for a retail investor with a {HORIZON}-year horizon.
+
+Live Yahoo Finance data:
+  current_price={CMP}, pe_ratio={PE}, week52_high={HIGH},
+  week52_low={LOW}, market_cap={MCAP}, sector={SECTOR},
+  price_5d_change_pct={MOM}, volume_ratio={VOL_RATIO}, rsi={RSI}
+
+STEP 1 — ANALYST RESEARCH (search the web):
+  a) Search "{COMPANY_NAME} analyst target price consensus {year}"
+  b) Search "{COMPANY_NAME} Moneycontrol analyst recommendation buy hold sell"
+  c) Search "{COMPANY_NAME} latest quarterly results revenue profit"
+  d) Search "{COMPANY_NAME} research report {month} {year} Motilal OR ICICI OR Kotak"
+  e) Search "{COMPANY_NAME} risks outlook {year}"
+  Collect: consensus target, num analysts, buy/hold/sell breakdown, 
+           recent results, key analyst narratives
+
+STEP 2 — AI INDEPENDENT THINKING (mandatory before forming any view):
+  Think through each of these in sequence. Show your reasoning openly:
+
+  VALUATION THINKING:
+  "The current P/E of {PE} compared to the sector average of approximately
+   X means this stock is [cheap/fair/expensive]. The 52-week range of 
+   ₹{LOW}–₹{HIGH} with current price at ₹{CMP} means it is trading at 
+   [X]% of its annual range. This suggests..."
+
+  MOMENTUM THINKING:
+  "The 5-day price change of {MOM}% and RSI of {RSI} tells me that
+   momentum is currently [strong/weak/neutral]. Volume is [above/below]
+   average which means [accumulation/distribution]. This technically..."
+
+  ANALYST CONSENSUS SANITY CHECK:
+  "The analyst consensus target of ₹X implies Y% upside from current 
+   levels. Given what I see in the price data and fundamentals, this 
+   target seems [too aggressive/reasonable/conservative] because..."
+
+  INDEPENDENT THESIS:
+  "My independent view is that this stock is worth approximately ₹X 
+   in {HORIZON} years because [2–3 sentences of reasoning].
+   The bull case is... The bear case is... The key swing factor is..."
+
+  WHAT ANALYSTS MAY HAVE MISSED:
+  "One thing I notice that may not be fully priced in by analyst 
+   consensus is..."
+
+STEP 3 — Return this full dual-report JSON:
+{
+  "ticker": "...",
+  "company_name": "...",
+  "sector": "...",
+  "current_price": 0,
+
+  "analyst_consensus": {
+    "recommendation": "STRONG BUY / BUY / HOLD / SELL",
+    "target_price": 0,         ← from search, NEVER 0
+    "upside_pct": 0,
+    "num_analysts": 0,
+    "buy_count": 0,
+    "hold_count": 0,
+    "sell_count": 0,
+    "source": "Moneycontrol / Trendlyne / Broker / AI Estimated",
+    "source_url": "URL if found",
+    "recent_results_summary": "2 sentences on latest quarterly performance",
+    "analyst_narrative": "2 sentences — why analysts are bullish/bearish"
+  },
+
+  "ai_recommendation": {
+    "recommendation": "BUY / HOLD / AVOID",
+    "target_price": 0,         ← AI's own estimate, NEVER 0
+    "upside_pct": 0,
+    "confidence": "HIGH / MEDIUM / LOW",
+    "entry_price": 0,
+    "stop_loss": 0,
+    "horizon": "SHORT / MEDIUM / LONG",
+    "agrees_with_analysts": true / false,
+    "divergence_reason": "If disagrees — exactly why",
+
+    "valuation_thinking": "AI's valuation reasoning (3 sentences)",
+    "momentum_thinking": "AI's technical reasoning (2 sentences)",
+    "analyst_sanity_check": "AI's view on whether analyst target is justified (2 sentences)",
+    "independent_thesis": "AI's own investment thesis (3 sentences — bull + bear + swing factor)",
+    "what_analysts_missed": "One insight the AI sees that analysts may have overlooked",
+
+    "summary": "2 sentences — plain English final AI verdict for a retail investor"
+  },
+
+  "signal_strength": "STRONG / MODERATE / CONFLICTED / WEAK",
+  "signal_explanation": "One sentence explaining the signal",
+
+  "valuation": {
+    "verdict": "Undervalued / Fairly Valued / Overvalued",
+    "pe_ratio": 0,
+    "pe_context": "How this PE compares to sector"
+  },
+
+  "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
+  "upcoming_catalyst": "Next event that could re-rate this stock",
+  "margin_of_safety": "Percentage discount to AI target price at current price"
+}
+
+All price fields must be non-zero. Return only JSON. No markdown.
+---
+
+DISPLAY — Stock Analyser report layout:
+  Card 1: Side-by-side ANALYST vs AI recommendation boxes (the hero element)
+  Card 2: AI Thinking — show all 5 thinking steps in expandable sections
+  Card 3: Valuation snapshot (PE, 52W range, upside from both targets)
+  Card 4: Risks + Upcoming Catalyst
+  Card 5: "What AI sees that analysts may have missed" — highlighted insight box
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — MY PORTFOLIO TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Keep existing add/edit/delete logic. Add P&L display:
+  pnl        = (current_price − avg_buy_price) × qty
+  pnl_pct    = (current_price − avg_buy_price) / avg_buy_price × 100
+  Show green if pnl > 0, red if pnl < 0.
+
+PORTFOLIO DUAL RECOMMENDATION PROMPT (single batch call):
+---
+You are a dual-role portfolio advisor:
+  Role A: Research current analyst views on each holding
+  Role B: Form your own independent portfolio verdict
+
+Holdings data (all in one call):
+{JSON: symbol, company_name, avg_buy_price, current_price, qty, pnl_pct, holding_days}
+
+For EACH holding:
+
+STEP 1 — ANALYST RESEARCH:
+  Search "{company_name} analyst recommendation {month} {year}"
+  Extract: current analyst consensus, target, source
+
+STEP 2 — AI PORTFOLIO THINKING:
+  a) Is this position currently in PROFIT or LOSS?
+  b) Has it reached the analyst target or is there still upside?
+  c) Is the current momentum helping or hurting this position?
+  d) Is there a TAX consideration? (STCG vs LTCG based on holding_days)
+  e) Does this position deserve MORE capital, less, or an exit?
+  f) What is the single most important thing the investor should know
+     about this holding RIGHT NOW?
+
+STEP 3 — Return this JSON per holding:
+[{
+  "symbol": "...",
+  "company_name": "...",
+  "current_price": 0,
+  "pnl_pct": 0,
+
+  "analyst_consensus": {
+    "recommendation": "BUY / HOLD / SELL",
+    "target_price": 0,       ← NEVER 0
+    "source": "Source name"
+  },
+
+  "ai_recommendation": {
+    "verdict": "HOLD / ADD MORE / REDUCE / EXIT",
+    "target_price": 0,       ← NEVER 0
+    "stop_loss": 0,          ← NEVER 0
+    "confidence": "HIGH / MEDIUM / LOW",
+    "agrees_with_analysts": true / false,
+    "divergence_reason": "If disagrees",
+    "thinking": "2–3 sentences: profit/loss context + momentum + tax + verdict rationale",
+    "summary": "One sentence verdict in plain English"
+  },
+
+  "tax_note": "STCG — {X} days to LTCG" or "LTCG qualified",
+  "signal_strength": "STRONG / MODERATE / CONFLICTED / WEAK",
+  "priority_action": "The single most important thing to do with this holding now"
+}]
+Return only JSON array. No markdown.
+---
+
+DISPLAY — Portfolio table columns:
+Symbol | Invested | Current Value | P&L | P&L% | Analyst View | AI Verdict | Signal | Tax Note
+
+Expanded row shows:
+  AI Thinking, Target from both analyst and AI, Stop Loss, Priority Action,
+  Divergence Reason if CONFLICTED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — SCORING ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4-factor model using ONLY Yahoo Finance data.
+This runs client-side BEFORE the AI call to pre-score stocks.
+
+function calculateScore(stock, tab) {
+  const { price_5d_change_pct: mom, volume_ratio: vol,
+          rsi, pe_ratio: pe } = stock;
+
+  // Momentum (30%)
+  const m = Math.min(Math.max((mom + 10) / 20 * 100, 0), 100);
+
+  // Volume (25%)
+  const v = vol > 0 ? Math.min(vol / 3 * 100, 100) : 50;
+
+  // RSI (25%) — neutral 50 if unavailable
+  const r = !rsi ? 50
+    : rsi >= 40 && rsi <= 65 ? 100
+    : (rsi >= 30 && rsi < 40) || (rsi > 65 && rsi <= 75) ? 60 : 20;
+
+  // P/E (20%) — different thresholds for large-cap vs penny
+  const thresholds = tab === 'nifty'
+    ? [20, 30, 50]   // large-cap benchmarks
+    : [15, 25, 40];  // penny/small-cap benchmarks
+  const p = !pe || pe <= 0 ? 50
+    : pe < thresholds[0] ? 90
+    : pe < thresholds[1] ? 70
+    : pe < thresholds[2] ? 50 : 20;
+
+  return Math.round(Math.min(Math.max(
+    m * 0.30 + v * 0.25 + r * 0.25 + p * 0.20, 0), 100));
+}
+
+Score → Recommendation tier:
+  ≥ 75 → STRONG BUY ⭐ | 60–74 → BUY ✅
+  45–59 → HOLD ⚠️ | 25–44 → AVOID 🔻 | < 25 → SELL ❌
+
+Hard overrides (post-score):
+  price > analyst_target      → cap at HOLD
+  pe_ratio > 100              → cap at HOLD
+  price_5d_change_pct < −15   → cap at AVOID
+  fetch failed / price = 0    → "Data Unavailable" — skip scoring
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — CACHING & PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cache TTLs (localStorage):
+  Yahoo Finance data          → 5 min   key: "yf_{symbol}"
+  Discovery stock list        → 60 min  key: "discovery_{tab}"
+  AI dual recommendations     → 30 min  key: "ai_dual_{tab}"
+  Stock Analyser report       → 60 min  key: "ai_analysis_{symbol}"
+  Portfolio AI                → 15 min  key: "ai_portfolio"
+
+  function getCache(key, ttl) {
+    try {
+      const x = JSON.parse(localStorage.getItem(key));
+      if (!x || Date.now() - x.ts > ttl * 60000) return null;
+      return x.data;
+    } catch { return null; }
+  }
+  function setCache(key, data) {
+    localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+  }
+
+Gemini token limits:
+  Discovery prompt    → max_tokens: 3000
+  Analysis (5 stocks) → max_tokens: 2500
+  Stock Analyser      → max_tokens: 3000
+  Portfolio AI        → max_tokens: 2000
+
+Progress messages (show during load):
+  Phase 1: "🔍 Searching analyst reports and research papers..."
+  Phase 2: "📊 Fetching live prices ({n} of 20)..."
+  Phase 3: "🤖 AI forming independent views on stocks {n}–{n+4}..."
+  Done:    "✅ Analyst + AI recommendations ready · {timestamp}"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — IMPLEMENTATION ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1 — Fix data bugs (do first):
+  ✅ formatTicker() — auto ".NS" suffix
+  ✅ safeParseAI() — universal JSON parser
+  ✅ sanitizeStock() — fix ₹0 targets
+  ✅ fetchInBatches() — 5 per batch, 600ms delay
+  ✅ Divide-by-zero guards in scoring
+
+STEP 2 — Enable web search on Gemini:
+  ✅ Add tools: [{type:"web_search_20250305", name:"web_search"}]
+     to every Gemini call in ai-provider.ts
+
+STEP 3 — Implement dual recommendation JSON schema:
+  ✅ Update all AI prompts to return analyst_consensus + ai_recommendation
+  ✅ Apply sanitizeStock() on every response
+  ✅ Add signal_strength computation
+
+STEP 4 — Update all tab UIs:
+  ✅ Add dual recommendation side-by-side cards to all table rows
+  ✅ Add signal_strength colour-coded badge column
+  ✅ Add expandable row with AI thinking + divergence reason
+
+STEP 5 — Dynamic discovery for all screener tabs:
+  ✅ Implement Phase 1 discovery prompt for Penny, Nifty 100, F&O
+  ✅ Cache discovery results 60 minutes
+
+STEP 6 — Portfolio and Stock Analyser:
+  ✅ Add P&L columns to portfolio
+  ✅ Update portfolio AI to dual recommendation
+  ✅ Update Stock Analyser to 5-card dual-report layout
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL RULES — NEVER VIOLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+G1. Every tab must show BOTH analyst_consensus AND ai_recommendation 
+    separately and clearly labelled. Never merge them into one field.
+
+G2. analyst_consensus.target_price and ai_recommendation.target_price 
+    must NEVER be 0. sanitizeStock() enforces this as a last resort.
+
+G3. ai_recommendation.thinking must always be present and non-empty.
+    This is the most valuable part of the AI output — show it prominently.
+
+G4. When analyst and AI recommendations DISAGREE, the divergence_reason 
+    must be specific and useful — not generic. Bad: "AI sees risk." 
+    Good: "Analysts are bullish on margin expansion but AI notes that 
+    raw material costs rose 18% last quarter — margin improvement may 
+    not materialise as quickly as the consensus assumes."
+
+G5. signal_strength CONFLICTED must be shown with an amber badge and 
+    an expand prompt: "AI disagrees with analysts — tap to see why."
+    This is your most engaging UI element.
+
+G6. All stock discovery is dynamic via AI web search. No hardcoded lists.
+
+G7. Never use Promise.all() — always Promise.allSettled().
+
+G8. Every analyst target displayed must show its source inline:
+    "₹485 · Moneycontrol" or "₹485 · AI Estimated"
+
+G9. Add to every card: "Analyst data from web search. AI view is independent.
+    Not SEBI-registered advice. Verify before investing."

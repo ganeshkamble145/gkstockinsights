@@ -1,0 +1,38 @@
+Steps to run the GK STocks Insight application
+1. In powershell run the below command to start the terminal
+ cd "d:\AI Projects\Project GKStocksAnalysis\gkstockinsights-main\gkstockinsights-main"
+
+2. Then run
+npm.cmd run dev -- --port 8081
+
+3. Then in the browser open the website
+http://localhost:8081
+
+
+
+To start the terminal and run your project, you have two main options depending on where you are working:
+
+1. In VS Code (Recommended)
+If you have the project open in VS Code, you can open the integrated terminal directly:
+
+Shortcut: Press Ctrl +  (the backtick key, usually below the Esc key).
+Menu: Go to Terminal > New Terminal at the top.
+2. From Windows Directly
+If you want to open a standalone terminal:
+
+Press Win + R, type powershell, and hit Enter.
+Once open, navigate to your project folder:
+powershell
+cd "d:\AI Projects\Project GKStocksAnalysis\gkstockinsights-main\gkstockinsights-main"
+🚀 Running the Project
+Once your terminal is open, you can start the development server by typing:
+
+powershell
+npm run dev
+TIP
+
+If you encounter a "Script Execution" error in PowerShell, you can bypass it by using this specific command I used earlier:
+
+powershell
+npm.cmd run dev -- --port 8081
+This will start the server at http://localhost:8081.
