@@ -39,6 +39,18 @@ Used in the "F&O Trading" tab to identify high-probability derivative plays.
 | **Volume Ratio** | 15% | Ratio of current contract volume vs. average. |
 | **Put-Call Ratio** | 10% | Balanced sentiment (0.7 to 1.3). Extremes suggest reversal risk. |
 
+### 📊 1.3 Mutual Fund Scoring Logic
+Used in the "Mutual Funds" tab to rank funds across Large, Mid, Small, Flexi, and ELSS categories.
+
+| Factor | Weight | Logic / Formula |
+| :--- | :--- | :--- |
+| **Returns Quality** | 30% | Weighted average of 5Y, 3Y, and 1Y CAGR relative to category benchmarks. |
+| **Risk-Adjusted Perf** | 20% | Powered primarily by the Sharpe Ratio. Scores > 1.0 are heavily favored. |
+| **Cost Efficiency** | 15% | Inverse scaling of Expense Ratio. Direct plans < 0.5% get max score. |
+| **Ratings Consensus** | 15% | Aggregated sentiment from Value Research, Morningstar, and Crisil. |
+| **Manager Tenure** | 10% | Continuity bonus for managers with >7 years at the same fund. |
+| **AUM & Scale** | 10% | Favors funds with large AUM (>₹20k Cr) for liquidity and stability. |
+
 ### 🏷️ 1.3 Recommendation Tiers
 The final composite score is mapped to actionable badges. Note: Recommendations are now strictly enforced by the **Valuation Safety Cap** logic.
 - **80 – 100:** ⭐ **STRONG BUY** (High momentum + Undervalued)
@@ -120,6 +132,13 @@ The `useMarketStatus` hook prevents unnecessary API calls:
 The Portfolio tab uses `localStorage` as the primary database.
 - **`gk_portfolio_entries`:** Stores user-added stocks (ID, Symbol, Qty, Price).
 - **`gk_portfolio_ai_cache`:** Stores the latest AI recommendations per symbol.
+
+### 📥 4.3 Excel Data Ingestion
+A high-performance bridge between local spreadsheets and the web dashboard.
+1. **Dynamic Templating**: The app generates a `.xlsx` file pre-filled with the user's current holdings using `XLSX.writeFile`.
+2. **Serial Date Normalization**: Implements a robust converter for Excel's 1900-date-system (serial numbers) to standard JS ISO dates.
+3. **Fuzzy Header Mapping**: Recognizes diverse CSV/Excel headers like "Qty", "Quantity", and "Number of Shares" to minimize import errors.
+4. **Smart Deduplication**: Cross-references incoming symbols against existing `localStorage` entries before commit.
 
 ### ⚡ 4.2 Batch AI Recommendations
 Unlike the screener which gets a pre-made list, the Portfolio AI must handle **custom user lists**.

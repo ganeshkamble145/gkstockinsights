@@ -16,7 +16,8 @@ A full-stack, AI-powered Indian stock market analysis platform for long-term inv
 | **NIFTY 100** | Top 10 undervalued large-cap picks from the Nifty 100 index |
 | **F&O Trading** | Top 10 stocks best-suited for Futures & Options strategies |
 | **⚡ AI Performance** | Tracks recommendation accuracy (Win Rate) and stores AI self-learning takeaways |
-| **📊 My Portfolio** | Personal portfolio tracker — add/edit/delete holdings, get AI recommendations |
+| **📈 Mutual Funds** | 15 top funds (3 per category) with 6-factor scoring and dual AI/Expert research |
+| **📊 My Portfolio** | Personal portfolio tracker — Excel import/export, add/edit/delete, get AI recommendations |
 
 ---
 
@@ -53,6 +54,7 @@ The platform now implements a closed-loop learning architecture:
 | Screener (Penny/Nifty) | Ranked 10-stock list: sector, P/E, ROCE, promoter holding, composite score, recommendation |
 | F&O | Greeks (Delta/Theta/Gamma), Max Pain, PCR, strategy legs (entry/target/SL), options play type |
 | AI Performance | Historical prediction accuracy, model self-rating, confidence calibration |
+| Mutual Funds | 3 picks per category: NAV, Returns, AUM, Alpha, Sharpe, Dual Analysis, Suitability |
 | My Portfolio | Verdict, strategy, entry/target/SL prices, score, reasoning, risks per holding |
 
 ---
@@ -80,6 +82,16 @@ The platform now implements a closed-loop learning architecture:
 | Implied Volatility | 15% | 20%–50% IV → ideal for option buyers |
 | Volume vs Average | 15% | High volume → liquid contract |
 | Put-Call Ratio | 10% | PCR 0.7–1.3 → balanced sentiment |
+
+### Mutual Funds — 6 Factors
+| Factor | Weight | Signal |
+|--------|--------|--------|
+| Return Consistency | 30% | Higher 5Y/3Y/1Y CAGR relative to category avg |
+| Risk-Adjusted Perf | 20% | Higher Sharpe Ratio (> 1.0) → higher score |
+| Cost Efficiency | 15% | Lower Expense Ratio → higher score |
+| Ratings Consensus | 15% | Value Research/Morningstar/Crisil stars/medals |
+| Manager Quality | 10% | Tenure > 10 years → max score |
+| Scale & Liquidity | 10% | Larger AUM → more stability |
 
 ### Recommendation Tiers
 | Score | Tier | Badge |
@@ -137,6 +149,8 @@ A personal stock portfolio tracker with no backend dependency — all data persi
 | **⚡ AI Recommendations** | Batch Gemini call for all holdings — populates Verdict, Strategy, Target, Entry, SL |
 | **Row expand** | Click any row → inline AI detail panel (reasoning, targets, risks, trend, score) |
 | **Totals footer** | Running sum of total amount invested |
+| **Excel Export** | Download current portfolio as a pre-filled Excel template |
+| **Excel Import** | Upload Excel/CSV to bulk-add stocks with smart deduplication |
 | **localStorage persistence** | Survives page refresh, no login required |
 
 ### AI Recommendation fields per stock
@@ -219,6 +233,7 @@ src/
 │   ├── analyser.functions.ts    # Server fn: deep fundamental report (8 sections)
 │   ├── screener.functions.ts    # Server fn: Penny & Nifty 100 AI screener
 │   ├── fno.functions.ts         # Server fn: F&O AI screener
+│   ├── mf.functions.ts          # Server fn: Mutual Funds discovery & research
 │   ├── portfolio-ai.functions.ts # Server fn: batch AI recommendations for portfolio
 │   ├── scoring.ts               # Composite scoring (equity 6-factor + F&O 6-factor)
 │   ├── perf-utils.ts            # TTL cache, fetchWithRetry, market hours, ErrorUI
@@ -233,6 +248,8 @@ src/
 │   ├── use-user-prefs.ts        # User preferences (view mode, filters)
 │   └── use-mobile.tsx           # Responsive breakpoint hook
 ├── components/
+│   ├── mf/
+│   │   └── MfDashboard.tsx            # Mutual Funds research dashboard
 │   ├── screener/
 │   │   ├── ScreenerDashboard.tsx      # Penny & Nifty 100 ranked table/card views
 │   │   ├── FnoDashboard.tsx           # F&O dashboard with option chain

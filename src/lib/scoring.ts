@@ -293,3 +293,109 @@ export function computeFnoScore(
 export function quoteOf(state: LiveQuoteState | undefined): LiveQuote | undefined {
   return state?.status === "ok" ? state.quote : undefined;
 }
+
+// ---------- Mutual Funds Scoring (Part 5) ----------
+
+export interface MfCompositeBreakdown {
+  composite: number;
+  breakdown: {
+    returns: number;
+    riskAdjusted: number;
+    cost: number;
+    ratings: number;
+    manager: number;
+    aum: number;
+  };
+  tier: {
+    label: string;
+    badge: string;
+    color: "green" | "blue" | "amber" | "red";
+  };
+}
+
+export function calculateMFScore(fund: any): MfCompositeBreakdown {
+  const scores: any = {};
+
+  // ── Factor 1: Returns Quality (30%) ──
+  const cagr = fund.performance?.return_5y_cagr_pct
+             ?? fund.performance?.return_3y_cagr_pct
+             ?? fund.performance?.return_1y_pct;
+  const catAvg = fund.performance?.category_avg_1y_pct ?? 12; 
+  if (cagr == null) {
+    scores.returns = 50; 
+  } else {
+    const alpha = cagr - catAvg;
+    scores.returns = Math.min(Math.max(50 + (alpha * 5), 0), 100);
+  }
+
+  // ── Factor 2: Risk-Adjusted Performance (20%) ──
+  const sharpe = fund.risk_metrics?.sharpe_ratio;
+  scores.riskAdjusted = sharpe == null ? 50
+    : sharpe >= 1.5 ? 95
+    : sharpe >= 1.0 ? 75
+    : sharpe >= 0.5 ? 50
+    : 25;
+
+  // ── Factor 3: Cost Efficiency (15%) ──
+  const er = fund.costs?.expense_ratio_pct;
+  scores.cost = er == null ? 50
+    : er <= 0.5 ? 100   
+    : er <= 1.0 ? 85
+    : er <= 1.5 ? 65
+    : er <= 2.0 ? 45
+    : 25;               
+
+  // ── Factor 4: Ratings Consensus (15%) ──
+  let ratingScore = 50;
+  const vr = fund.ratings?.value_research_stars;
+  const ms = fund.ratings?.morningstar_medal;
+  const cr = fund.ratings?.crisil_rank;
+  if (vr?.includes('5')) ratingScore += 20;
+  else if (vr?.includes('4')) ratingScore += 10;
+  if (ms === 'Gold') ratingScore += 15;
+  else if (ms === 'Silver') ratingScore += 8;
+  if (cr?.includes('1')) ratingScore += 15;
+  else if (cr?.includes('2')) ratingScore += 8;
+  scores.ratings = Math.min(Math.max(ratingScore, 0), 100);
+
+  // ── Factor 5: Fund Manager Continuity (10%) ──
+  const tenure = fund.fund_manager?.tenure_years;
+  scores.manager = tenure == null ? 50
+    : tenure >= 7 ? 100
+    : tenure >= 5 ? 80
+    : tenure >= 3 ? 60
+    : tenure >= 1 ? 40
+    : 20;
+
+  // ── Factor 6: AUM and Scale (10%) ──
+  const aum = fund.aum_crores;
+  scores.aum = aum == null ? 50
+    : aum >= 2000 && aum <= 30000 ? 100  
+    : aum >= 1000 ? 80
+    : aum >= 500  ? 60
+    : aum >= 100  ? 40
+    : 20;  
+
+  const composite = Math.round(
+    (scores.returns      * 0.30) +
+    (scores.riskAdjusted * 0.20) +
+    (scores.cost         * 0.15) +
+    (scores.ratings      * 0.15) +
+    (scores.manager      * 0.10) +
+    (scores.aum          * 0.10)
+  );
+
+  return {
+    composite: Math.min(Math.max(composite, 0), 100),
+    breakdown: scores,
+    tier: mfTier(composite)
+  };
+}
+
+function mfTier(score: number): any {
+  if (score >= 80) return { label: 'EXCEPTIONAL',   badge: '⭐⭐⭐',  color: 'green'  };
+  if (score >= 65) return { label: 'RECOMMENDED',   badge: '⭐⭐',    color: 'green'  };
+  if (score >= 50) return { label: 'CONSIDER',       badge: '⭐',     color: 'blue'   };
+  if (score >= 35) return { label: 'REVIEW NEEDED',  badge: '⚠️',    color: 'amber'  };
+  return              { label: 'AVOID',              badge: '❌',     color: 'red'    };
+}

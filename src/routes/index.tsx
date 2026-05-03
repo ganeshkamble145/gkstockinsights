@@ -8,6 +8,7 @@ import { ScreenerDashboard } from "@/components/screener/ScreenerDashboard";
 import { FnoDashboard } from "@/components/screener/FnoDashboard";
 import { AIPerformanceDashboard } from "@/components/screener/AIPerformanceDashboard";
 import { MyPortfolioDashboard } from "@/components/portfolio/MyPortfolioDashboard";
+import { MfDashboard } from "@/components/mf/MfDashboard";
 import { MarketStatusBadge } from "@/components/screener/MarketStatusBadge";
 import { cn } from "@/lib/utils";
 import stockLogo from "@/assets/stock-logo.png";
@@ -15,7 +16,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { useGeminiKey } from "@/hooks/use-gemini-key";
 import { toast } from "sonner";
 
-type View = "analyser" | "penny" | "nifty100" | "fno" | "performance" | "portfolio";
+type View = "analyser" | "penny" | "nifty100" | "fno" | "performance" | "portfolio" | "mf";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -105,6 +106,14 @@ function Index() {
     );
   }
 
+  if (view === "mf") {
+    return (
+      <div className="min-h-screen bg-background text-foreground px-4 sm:px-8 py-8">
+        <MfDashboard onBack={() => setView("analyser")} />
+      </div>
+    );
+  }
+
 
 
   return (
@@ -152,6 +161,15 @@ function Index() {
               className="px-4 py-1.5 rounded-full border border-border text-muted-foreground text-sm hover:border-foreground/40 hover:text-foreground transition-colors"
             >
               F&amp;O Trading
+            </button>
+            <button
+              onClick={() => setView("mf")}
+              className={cn(
+                "px-4 py-1.5 rounded-full border text-sm font-medium transition-colors",
+                view === "mf" ? "border-foreground text-foreground" : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+              )}
+            >
+              💰 Mutual Funds
             </button>
             <button
               onClick={() => setView("performance")}

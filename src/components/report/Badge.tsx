@@ -31,7 +31,7 @@ const TONE_MAP: Record<string, Tone> = {
 };
 
 export function Badge({ label, tone: toneOverride }: { label: string; tone?: Tone }) {
-  const tone = toneOverride ?? TONE_MAP[label.toUpperCase()] ?? "neu";
+  const tone = toneOverride ?? TONE_MAP[(label || "").toUpperCase()] ?? "neu";
   const cls: Record<Tone, string> = {
     ok: "bg-g-fill text-g-text",
     warn: "bg-a-fill text-a-text",

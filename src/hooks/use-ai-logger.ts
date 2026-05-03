@@ -20,7 +20,7 @@ export async function logRecommendation(params: LogRecommendationParams) {
     const dbTabType = params.tab_type === "analyser" ? "nifty100" : params.tab_type;
     
     // DB check constraint expects EXACT uppercase: 'STRONG BUY','BUY','HOLD','AVOID','SELL'
-    const dbRec = params.recommendation.toUpperCase();
+    const dbRec = (params.recommendation || "BUY").toUpperCase();
 
     const { data, error } = await supabase.from("recommendations").insert({
       symbol: params.symbol,

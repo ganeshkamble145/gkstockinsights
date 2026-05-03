@@ -10,6 +10,7 @@ import { getPortfolioAI, type PortfolioAIResult } from "@/lib/portfolio-ai.funct
 import { cn } from "@/lib/utils";
 import { useGeminiKey } from "@/hooks/use-gemini-key";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -276,6 +277,85 @@ export function MyPortfolioDashboard({ onBack }: { onBack: () => void }) {
     }
   }
 
+  // ── Excel Export / Import ─────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function downloadTemplate() {
+    const data = entries.length > 0 ? entries.map(e => ({
+      "Symbol": e.symbol,
+      "Company": e.company,
+      "Quantity": e.qty,
+      "Avg Price": e.avgPrice,
+      "Buy Date": e.buyDate,
+      "Notes": e.notes
+    })) : [{
+      "Symbol": "RELIANCE",
+      "Company": "Reliance Industries",
+      "Quantity": 10,
+      "Avg Price": 2500,
+      "Buy Date": "2024-01-01",
+      "Notes": "Bluechip holding"
+    }];
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Portfolio");
+    XLSX.writeFile(wb, "GK_Portfolio_Template.xlsx");
+    toast.success("Excel template downloaded!");
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const dataArr = evt.target?.result;
+        const wb = XLSX.read(dataArr, { type: "binary", cellDates: true, dateNF: "yyyy-mm-dd" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" }) as any[];
+
+        const newEntries: PortfolioEntry[] = data.map(row => {
+          // Handle various date formats from Excel
+          let bDate = row["Buy Date"] || row.buyDate || row.Date || "";
+          if (bDate instanceof Date) {
+            bDate = bDate.toISOString().split("T")[0];
+          }
+
+          return {
+            id: crypto.randomUUID(),
+            symbol: String(row.Symbol || row.symbol || "").toUpperCase().trim(),
+            company: String(row.Company || row.company || "").trim(),
+            qty: parseFloat(row.Quantity || row.quantity || row.Qty || 0),
+            avgPrice: parseFloat(row["Avg Price"] || row.avgPrice || row.Price || 0),
+            buyDate: bDate,
+            notes: String(row.Notes || row.notes || "").trim()
+          };
+        }).filter(e => e.symbol);
+
+        if (newEntries.length === 0) {
+          toast.error("No valid stock entries found in file.");
+          return;
+        }
+
+        setEntries(prev => {
+          const existing = new Set(prev.map(p => p.symbol));
+          const uniqueNew = newEntries.filter(n => !existing.has(n.symbol));
+          return [...prev, ...uniqueNew];
+        });
+
+        toast.success(`Imported ${newEntries.length} stocks successfully!`);
+      } catch (err) {
+        toast.error("Failed to parse Excel file.");
+        console.error(err);
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────
 
   const totalInvested = entries.reduce((s, e) => s + e.qty * e.avgPrice, 0);
@@ -299,11 +379,30 @@ export function MyPortfolioDashboard({ onBack }: { onBack: () => void }) {
 
         {/* Toolbar */}
         <div className="flex flex-wrap gap-2">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            accept=".xlsx, .xls, .csv" 
+            className="hidden" 
+          />
+          <button
+            onClick={downloadTemplate}
+            className="px-4 py-1.5 rounded-full border border-border text-sm font-medium hover:border-foreground/40 transition-colors flex items-center gap-1.5"
+          >
+            📥 Download Template
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-1.5 rounded-full border border-border text-sm font-medium hover:border-foreground/40 transition-colors flex items-center gap-1.5"
+          >
+            📤 Upload Excel
+          </button>
           <button
             onClick={() => { setEditEntry(null); setShowModal(true); }}
             className="px-4 py-1.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            + Add stock
+            + Add stock manually
           </button>
           <button
             onClick={fetchAI}
