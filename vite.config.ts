@@ -6,7 +6,9 @@ import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [
-    tanstackStart(),
+    tanstackStart({
+      deploymentTarget: "netlify",
+    }),
     react(),
     tailwindcss(),
     tsConfigPaths(),
