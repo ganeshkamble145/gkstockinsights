@@ -1,6 +1,5 @@
 # 📈 GK Stock Insights — Indian Stock Fundamental Analyser
 
-> **Live app:** [gkstockinsights.lovable.app](https://gkstockinsights.lovable.app)  
 > **Local dev:** `http://localhost:8081`
 
 A full-stack, AI-powered Indian stock market analysis platform for long-term investors and active traders. It combines live Yahoo Finance market data with Google Gemini large-language-model analysis to rank, score, and explain stocks across five specialised dashboards.

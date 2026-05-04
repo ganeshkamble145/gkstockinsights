@@ -31,16 +31,12 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "GK's Indian Stock Analyzer" },
       { name: "description", content: "Indian Stock Market Analyzer" },
-      { name: "author", content: "Lovable" },
       { property: "og:title", content: "GK's Indian Stock Analyzer" },
       { property: "og:description", content: "Indian Stock Market Analyzer" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "GK's Indian Stock Analyzer" },
       { name: "twitter:description", content: "Indian Stock Market Analyzer" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1fcf89af-659a-4b9a-b182-d48dc7078a09/id-preview-d6a3e069--7646514a-f5ba-439d-9640-cb9b311c3035.lovable.app-1776879066822.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1fcf89af-659a-4b9a-b182-d48dc7078a09/id-preview-d6a3e069--7646514a-f5ba-439d-9640-cb9b311c3035.lovable.app-1776879066822.png" },
     ],
     links: [
       {
