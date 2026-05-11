@@ -2,7 +2,7 @@
 
 > **Local dev:** `http://localhost:8081`
 
-A full-stack, AI-powered Indian stock market analysis platform for long-term investors and active traders. It combines live Yahoo Finance market data with Google Gemini large-language-model analysis to rank, score, and explain stocks across five specialised dashboards.
+A full-stack, AI-powered Indian stock market analysis platform for long-term investors and active traders. It combines live Yahoo Finance market data with Google Gemini large-language-model analysis to rank, score, and explain stocks across nine specialised dashboards.
 
 ---
 
@@ -15,15 +15,61 @@ A full-stack, AI-powered Indian stock market analysis platform for long-term inv
 | **NIFTY 100** | Top 10 undervalued large-cap picks from the Nifty 100 index |
 | **F&O Trading** | Top 10 stocks best-suited for Futures & Options strategies |
 | **Crypto Picks** | Top 10 undervalued cryptos under ₹200 with India tax calculator |
+| **🎯 RA Stock Pick** | 7–10 SEBI RA-style AI picks ≤ ₹500 CMP — 7-step analysis, ranked by conviction, with live NSE prices |
 | **⚡ AI Performance** | Tracks recommendation accuracy (Win Rate) and stores AI self-learning takeaways |
-| **📈 Mutual Funds** | 15 top funds (3 per category) with 6-factor scoring and dual AI/Expert research |
+| **💰 Mutual Funds** | 15 top funds (3 per category) with 6-factor scoring and dual AI/Expert research |
 | **📊 My Portfolio** | Personal portfolio tracker — Excel import/export, add/edit/delete, get AI recommendations |
+
+---
+
+## 🎯 RA Stock Pick Tab (New)
+
+A SEBI Research Analyst-style AI screening engine that applies a rigorous **7-step analysis pipeline** to surface the best undervalued Indian stocks priced at or below ₹500 CMP.
+
+### 7-Step Analysis Pipeline
+
+| Step | Name | What Happens |
+|------|------|-------------|
+| 1 | **Intelligence Gathering** | News, exchange filings, social sentiment, promoter activity, broker reports synthesised |
+| 2 | **Universe Filter** | Hard filters: CMP ≤ ₹500 · Mkt Cap > ₹50 Cr · Avg Volume > ₹20L/day · 1yr+ listing · No ASM/GSM |
+| 3 | **Technical Analysis** | RSI (oversold ≤35), bullish MACD crossover, volume surge ≥3×, strong support; rated STRONG / MODERATE |
+| 4 | **Fundamental Analysis** | P/E ≥30% below sector median, Revenue growth ≥15% YoY (2 qtrs), D/E < 1.0, Promoter >40% stable; scored /10 |
+| 5 | **Catalyst Identification** | Primary catalyst per pick (deal win, PLI scheme, earnings recovery, re-rating) |
+| 6 | **Horizon Assessment** | Separate Short-Term and Long-Term target prices with upside % |
+| 7 | **Ranking & Output** | 7–10 picks ranked by conviction across ≥5 sectors, each with stop-loss |
+
+### Output Per Pick
+- Rank badge (🥇🥈🥉) · Company · Ticker · Sector
+- **Live NSE price** (via Yahoo Finance proxy — replaces stale AI training-data price)
+- Short-Term target · Long-Term target · Stop-Loss · Horizon
+- Why This Stock (4 bullet points) · Primary Catalyst · Catalysts list
+- Technical: RSI · MACD signal · Volume surge · Support/Resistance zone
+- Fundamentals: P/E vs Sector · Revenue growth Q1/Q2 · D/E · Promoter holding & trend · Pledging %
+- Intelligence feed: Sentiment · Broker consensus · Promoter activity · FII/DII flow · Recent news
+- Universe filter checklist · Risks · Red-flag screening shield
+- SEBI disclaimer + data notice on every card
+
+### Live Price Integration
+After the AI returns picks, the dashboard immediately fetches live NSE/BSE prices via the Yahoo Finance server-side proxy for all tickers simultaneously. Price display states:
+
+| State | Display |
+|-------|---------|
+| Loading | Spinner + "Fetching live…" |
+| Live (market open) | Real price + day ▲/▼ change % + **● Live NSE** badge |
+| Last close (market closed) | Last close price + change + **● Live NSE** badge |
+| Fetch failed | ⚠ AI est. ₹XXX (graceful fallback) |
+
+### Red Flag Guards
+Every pick is screened for: SEBI enforcement orders · Promoter pledging >10% · ASM/GSM categorisation · Negative news · Corporate governance issues. Stocks failing any check are excluded by the AI.
+
+### CMP Safety Filter
+A post-parse server-side guard strips any AI pick with CMP > ₹500 before returning results to the UI. Numeric CMP values returned by the AI are automatically normalised to `₹`-prefixed strings.
 
 ---
 
 ## 🧠 AI Engine
 
-### Model Cascade (5-level Gemini fallback)
+### Model Cascade (6-level Gemini fallback)
 All AI calls route through a unified provider in `src/lib/ai-provider.ts`:
 
 ```
@@ -37,15 +83,15 @@ All AI calls route through a unified provider in `src/lib/ai-provider.ts`:
 
 - **5-second pause** between each attempt to let per-minute quota recover
 - Each model has its own rate-limit bucket — a 429 on one succeeds on another
-- All calls use `responseMimeType: "application/json"` — no code-fence stripping
+- All calls use `responseMimeType: "application/json"` — no code-fence stripping needed
 
 ### 🧠 Self-Learning Feedback Loop (v2.0)
-The platform now implements a closed-loop learning architecture:
-1.  **Outcome Tracking**: Recommendations are tracked at 7, 14, and 30-day intervals.
-2.  **Mistake Analysis**: Before generating new picks, the AI fetches its recent "LOSSES" from Supabase.
-3.  **Prompt Refinement**: The AI analyzes why previous picks failed and adjusts its screening logic to avoid similar patterns.
-4.  **Learning Takeaways**: For every report, the AI generates a "Lesson Learned" which is persisted in the AI Learning Log.
-- `parseAIJson<T>()` utility handles any residual markdown fences
+The platform implements a closed-loop learning architecture:
+1. **Outcome Tracking**: Recommendations are tracked at 7, 14, and 30-day intervals.
+2. **Mistake Analysis**: Before generating new picks, the AI fetches its recent "LOSSES" from Supabase.
+3. **Prompt Refinement**: The AI analyzes why previous picks failed and adjusts its screening logic.
+4. **Learning Takeaways**: For every report, the AI generates a "Lesson Learned" which is persisted in the AI Learning Log.
+- `parseAIJson<T>()` utility handles residual markdown fences and repairs malformed JSON
 
 ### AI Outputs per Tab
 | Tab | AI Returns |
@@ -54,6 +100,7 @@ The platform now implements a closed-loop learning architecture:
 | Screener (Penny/Nifty) | Ranked 10-stock list: sector, P/E, ROCE, promoter holding, composite score, recommendation |
 | F&O | Greeks (Delta/Theta/Gamma), Max Pain, PCR, strategy legs (BUY/SELL), options play type |
 | Crypto Picks | Multibagger potential, 52W high/low, RSI, India exchange availability, dual-analyst view |
+| **RA Stock Pick** | 7–10 ranked picks ≤ ₹500 CMP: full 7-step RA analysis per pick, live NSE prices overlaid |
 | AI Performance | Historical prediction accuracy, model self-rating, confidence calibration |
 | Mutual Funds | 3 picks per category: NAV, Returns, AUM, Alpha, Sharpe, Dual Analysis, Suitability |
 | My Portfolio | Verdict, strategy, entry/target/SL prices, score, reasoning, risks per holding |
@@ -89,7 +136,7 @@ The platform now implements a closed-loop learning architecture:
 |--------|--------|--------|
 | Multibagger Potential | 30% | Estimated return multiple vs historical volatility |
 | Fundamental Utility | 25% | Real-world use case + developer activity |
-| Technical Momentum | 20% | RSI(14) in 35-65 range + 52W range position |
+| Technical Momentum | 20% | RSI(14) in 35–65 range + 52W range position |
 | Tokenomics Risk | 15% | Inflation rate + unlock schedule (lower = better) |
 | Sentiment Consensus | 10% | Research Desk + AI Analyst agreement |
 
@@ -114,6 +161,7 @@ The platform now implements a closed-loop learning architecture:
   - Pauses automatically when browser tab is hidden (Page Visibility API)
   - Pauses entirely when market is closed
 - **Cache-Control headers:** 55s during market hours, 1h when closed (`stale-while-revalidate`)
+- **RA Stock Pick:** Fetches live prices for all picks simultaneously via `Promise.allSettled` immediately after AI analysis completes
 
 ---
 
@@ -121,7 +169,7 @@ The platform now implements a closed-loop learning architecture:
 
 | Optimisation | Detail |
 |-------------|--------|
-| **Parallel fetching** | All 10 stocks fetched via `Promise.allSettled()` simultaneously |
+| **Parallel fetching** | All stocks fetched via `Promise.allSettled()` simultaneously |
 | **TTL localStorage cache** | `gkCache` — time-bucketed keys, configurable TTL per data type |
 | **Retry with backoff** | `fetchWithRetry()` — 8s `AbortController` timeout, exponential backoff |
 | **Market-hours awareness** | `checkMarketHours()` — no polling outside 9:15–15:30 IST |
@@ -191,7 +239,7 @@ Deep-dive 8-section fundamental report for any NSE/BSE ticker:
 7. **Ownership** — Promoter holding %, FII/DII trends, pledge %
 8. **Long-Term View** — AI thesis, catalysts, risks, DCF-based fair value range
 
-Input: NSE/BSE ticker + investment horizon (3/5/10 years custom)
+Input: NSE/BSE ticker + investment horizon (3/5/10 years or custom)
 
 ---
 
@@ -215,9 +263,9 @@ Self-improving intelligence tracking:
 | UI Primitives | Radix UI + shadcn/ui patterns |
 | Styling | Tailwind CSS v4 |
 | State | TanStack Query v5 + React `useState` |
-| AI Provider | Google Gemini (5-model cascade) |
+| AI Provider | Google Gemini (6-model cascade) |
 | Live Data | Yahoo Finance via server-side proxy |
-| Database | Supabase (Postgres) — screener cache tables |
+| Database | Supabase (Postgres) — screener cache + AI learning log |
 | PDF | jsPDF + jspdf-autotable |
 | Validation | Zod |
 | Deployment | Vite dev server (local) |
@@ -229,53 +277,56 @@ Self-improving intelligence tracking:
 ```
 src/
 ├── lib/
-│   ├── ai-provider.ts           # Gemini 5-model fallback cascade + parseAIJson
-│   ├── analyser.functions.ts    # Server fn: deep fundamental report (8 sections)
-│   ├── screener.functions.ts    # Server fn: Penny & Nifty 100 AI screener
-│   ├── fno.functions.ts         # Server fn: F&O AI screener (BUY/SELL explicit strikes)
-│   ├── crypto.functions.ts      # Server fn: Crypto AI discovery (Top 10 < ₹200)
-│   ├── mf.functions.ts          # Server fn: Mutual Funds discovery & research
+│   ├── ai-provider.ts            # Gemini 6-model fallback cascade + parseAIJson
+│   ├── analyser.functions.ts     # Server fn: deep fundamental report (8 sections)
+│   ├── screener.functions.ts     # Server fn: Penny & Nifty 100 AI screener
+│   ├── fno.functions.ts          # Server fn: F&O AI screener (BUY/SELL explicit strikes)
+│   ├── crypto.functions.ts       # Server fn: Crypto AI discovery (Top 10 < ₹200)
+│   ├── mf.functions.ts           # Server fn: Mutual Funds discovery & research
+│   ├── ra-pick.functions.ts      # Server fn: RA 7-step AI screener (7–10 picks ≤ ₹500)
 │   ├── portfolio-ai.functions.ts # Server fn: batch AI recommendations for portfolio
-│   ├── scoring.ts               # Composite scoring (equity 6-factor + F&O + Crypto)
-│   ├── perf-utils.ts            # TTL cache, fetchWithRetry, market hours, ErrorUI
-│   ├── pdf-export.ts            # PDF generation (compact table + detailed cards)
-│   ├── types.ts                 # TypeScript interfaces (StockReport, MetricRow…)
-│   └── utils.ts                 # Tailwind cn() utility
+│   ├── scoring.ts                # Composite scoring (equity 6-factor + F&O + Crypto)
+│   ├── perf-utils.ts             # TTL cache, fetchWithRetry, market hours, ErrorUI
+│   ├── pdf-export.ts             # PDF generation (compact table + detailed cards)
+│   ├── types.ts                  # TypeScript interfaces (StockReport, MetricRow…)
+│   └── utils.ts                  # Tailwind cn() utility
 ├── hooks/
-│   ├── use-live-quotes.ts       # Yahoo Finance polling (RSI + momentum, auto-pause)
-│   ├── use-market-status.ts     # NSE market hours detector
-│   ├── use-ai-performance.ts    # AI prediction tracking & accuracy metrics
-│   ├── use-option-chain.ts      # F&O option chain data hook
-│   ├── use-user-prefs.ts        # User preferences (view mode, filters)
-│   └── use-mobile.tsx           # Responsive breakpoint hook
+│   ├── use-live-quotes.ts        # Yahoo Finance polling (RSI + momentum, auto-pause)
+│   ├── use-market-status.ts      # NSE market hours detector
+│   ├── use-ai-performance.ts     # AI prediction tracking & accuracy metrics
+│   ├── use-option-chain.ts       # F&O option chain data hook
+│   ├── use-user-prefs.ts         # User preferences (view mode, filters)
+│   └── use-mobile.tsx            # Responsive breakpoint hook
 ├── components/
 │   ├── mf/
-│   │   └── MfDashboard.tsx            # Mutual Funds research dashboard
+│   │   └── MfDashboard.tsx             # Mutual Funds research dashboard
 │   ├── screener/
-│   │   ├── ScreenerDashboard.tsx      # Penny & Nifty 100 ranked table/card views (52W High/Low)
-│   │   ├── FnoDashboard.tsx           # F&O dashboard (52W range bar + explicit strikes)
-│   │   ├── CryptoDashboard.tsx        # Crypto dashboard (India Tax Calc + Suitability)
-│   │   ├── AIPerformanceDashboard.tsx # AI accuracy tracking dashboard
-│   │   ├── PerfUI.tsx                 # Skeleton loaders, ErrorCard, ErrorPill
-│   │   ├── MarketStatusBadge.tsx      # Live market open/closed indicator
-│   │   ├── LiveMarketView.tsx         # Real-time price strip
-│   │   ├── LiveStockSnapshot.tsx      # Per-stock live data panel
-│   │   ├── FnoOptionChain.tsx         # Option chain table component
-│   │   ├── PriceAlerts.tsx            # Price alert manager
-│   │   ├── PdfExportButton.tsx        # PDF export trigger
-│   │   ├── RankedBadges.tsx           # Score/rank badge components
-│   │   └── BudgetFilterBar.tsx        # Budget range filter UI
+│   │   ├── ScreenerDashboard.tsx       # Penny & Nifty 100 ranked table/card views
+│   │   ├── FnoDashboard.tsx            # F&O dashboard (52W range bar + explicit strikes)
+│   │   ├── CryptoDashboard.tsx         # Crypto dashboard (India Tax Calc + Suitability)
+│   │   ├── RAPickDashboard.tsx         # RA Stock Pick — 7-step AI picks with live NSE prices
+│   │   ├── AIPerformanceDashboard.tsx  # AI accuracy tracking dashboard
+│   │   ├── PerfUI.tsx                  # Skeleton loaders, ErrorCard, ErrorPill
+│   │   ├── MarketStatusBadge.tsx       # Live market open/closed indicator
+│   │   ├── LiveMarketView.tsx          # Real-time price strip
+│   │   ├── LiveStockSnapshot.tsx       # Per-stock live data panel
+│   │   ├── LivePriceBlock.tsx          # Compact live price + change % block (shared)
+│   │   ├── FnoOptionChain.tsx          # Option chain table component
+│   │   ├── PriceAlerts.tsx             # Price alert manager
+│   │   ├── PdfExportButton.tsx         # PDF export trigger
+│   │   ├── RankedBadges.tsx            # Score/rank badge components
+│   │   └── BudgetFilterBar.tsx         # Budget range filter UI
 │   ├── portfolio/
-│   │   └── MyPortfolioDashboard.tsx   # Portfolio tracker (add/edit/delete + AI)
+│   │   └── MyPortfolioDashboard.tsx    # Portfolio tracker (add/edit/delete + AI)
 │   ├── report/
-│   │   └── Report.tsx                 # 8-section fundamental report renderer
-│   └── ui/                            # Radix/shadcn base components
+│   │   └── Report.tsx                  # 8-section fundamental report renderer
+│   └── ui/                             # Radix/shadcn base components
 ├── routes/
-│   ├── index.tsx                # Main page — all tab navigation
+│   ├── index.tsx                 # Main page — all 9 tab navigation + routing
 │   └── api.public.yahoo-proxy.ts # Server-side Yahoo Finance proxy with cache headers
-└── styles.css                   # Global Tailwind base styles + design tokens
+└── styles.css                    # Global Tailwind base styles + design tokens
 supabase/
-└── migrations/                  # Supabase Postgres schema migrations
+└── migrations/                   # Supabase Postgres schema migrations
 ```
 
 ---
@@ -295,7 +346,7 @@ USER_GEMINI_API_KEY=AIza...
 GEMINI_API_KEY_TIER3=AIza...
 GEMINI_API_KEY_FREE=AIza...
 
-# Supabase (for screener cache)
+# Supabase (for screener cache + AI learning log)
 VITE_SUPABASE_URL=https://...supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=eyJ...
 SUPABASE_URL=https://...supabase.co
